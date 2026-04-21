@@ -21,10 +21,22 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e . pip-audit bandit detect-secrets
+          python -m pip install -e . pip-audit bandit detect-secrets build
 
-      - name: Run strict enterprise gate
+      - name: Build artifacts
+        run: python -m build
+
+      - name: Run canonical truth validators
+        run: |
+          python scripts/validate_no_placeholder_tests.py
+          python scripts/validate_nexus_master_truth.py
+          python scripts/validate_nexus_10_10_gate.py
+
+      - name: Run enterprise gate
         run: python scripts/run_enterprise_gate.py
+
+      - name: Generate release manifest
+        run: python scripts/generate_release_manifest.py
 
       - name: Validate strict evidence freshness
         run: python scripts/validate_enterprise_evidence.py --max-age-days 2
@@ -34,5 +46,7 @@ jobs:
         with:
           name: strict-enterprise-release-evidence
           path: |
+            dist/
+            docs/release/RELEASE_MANIFEST.json
             docs/release/ENTERPRISE_RELEASE_EVIDENCE.json
             docs/release/evidence/
