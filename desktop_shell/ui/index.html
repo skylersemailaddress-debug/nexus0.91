@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Nexus Desktop</title>
+  <link rel="stylesheet" href="/assets/styles.css" />
+</head>
+<body>
+  <div id="app" class="workspace">
+    <header class="workspace-topbar">
+      <div class="brand">
+        <div class="brand-mark"></div>
+        <div class="brand-copy">
+          <h1>Nexus</h1>
+          <p id="workspace-label">workspace:main</p>
+        </div>
+      </div>
+      <div class="topbar-actions" role="toolbar" aria-label="Workspace controls">
+        <button id="density-toggle" class="ghost subtle">Density</button>
+        <button id="summon-models" class="ghost">Models</button>
+        <button id="summon-governance" class="ghost">Governance</button>
+        <button id="summon-proof" class="ghost">Proof</button>
+        <button id="open-textual" class="ghost subtle">Operator Shell</button>
+      </div>
+    </header>
+
+    <section class="context-strip" aria-live="polite">
+      <div class="context-primary">
+        <span id="run-state-pill" class="pill">idle</span>
+        <span id="active-mission-pill" class="pill muted">mission: none</span>
+        <span id="pending-pill" class="pill muted">pending approvals: 0</span>
+        <button id="approve-next" class="ghost tiny hidden">Approve Next</button>
+      </div>
+      <div class="context-secondary">
+        <p id="route-signal" class="signal">route signal: waiting</p>
+        <p id="model-signal" class="signal">model signal: waiting</p>
+      </div>
+    </section>
+
+    <main class="conversation-stage">
+      <section id="conversation-log" class="conversation-log" aria-live="polite"></section>
+
+      <section id="quick-actions" class="quick-actions" aria-label="Context actions"></section>
+
+      <section class="composer-shell">
+        <div class="composer-header">
+          <p class="composer-guidance">Compose the next best move. Use Shift+Enter for a newline.</p>
+          <button id="focus-composer" class="ghost tiny">Focus</button>
+        </div>
+        <form id="composer-form" class="composer-form">
+          <textarea
+            id="composer-input"
+            placeholder="State your objective, question, or mission directive..."
+            rows="3"
+          ></textarea>
+          <div class="composer-actions">
+            <button type="button" id="launch-mission" class="ghost">Launch Mission</button>
+            <button type="submit" class="primary">Send</button>
+          </div>
+        </form>
+      </section>
+    </main>
+
+    <aside id="depth-layer" class="depth-layer hidden">
+      <div class="depth-header">
+        <h2 id="depth-title">Depth</h2>
+        <button id="close-depth" class="ghost">Close</button>
+      </div>
+      <div id="depth-intro" class="depth-intro"></div>
+      <div id="depth-body" class="depth-body"></div>
+    </aside>
+  </div>
+
+  <script type="module" src="/assets/app.js"></script>
+</body>
+</html>

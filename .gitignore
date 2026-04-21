@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+desktop_shell/node_modules/
+.venv/
+*.egg-info/
+build/
+dist/
+
+# Generated release evidence artifacts (created by scripts/run_enterprise_gate.py)
+docs/release/ENTERPRISE_RELEASE_EVIDENCE.json
+docs/release/evidence/
+# release hygiene
+*.py[cod]
+.mypy_cache/

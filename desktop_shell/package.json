@@ -1,0 +1,15 @@
+{
+  "name": "nexus-desktop-shell",
+  "version": "0.9.0",
+  "private": true,
+  "description": "Desktop-first Nexus product shell",
+  "main": "electron/main.js",
+  "scripts": {
+    "desktop": "electron electron/main.js",
+    "desktop:dev": "electron electron/main.js",
+    "desktop:api": "python3 -m nexus_os.product.api_server"
+  },
+  "devDependencies": {
+    "electron": "^31.7.7"
+  }
+}

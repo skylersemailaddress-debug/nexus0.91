@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nexus-v0-9"
+version = "0.9.0"
+description = "Unified Nexus operating system architecture"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+ui = ["textual>=0.50.0"]
+
+[project.scripts]
+nexus = "nexus_os.product.launcher:main"
+nexus-ui = "nexus_os.ui.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["nexus_os*", "nexus_observability*", "nexus_persistence*", "nexus_security*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+asyncio_mode = "auto"

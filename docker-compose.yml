@@ -1,0 +1,10 @@
+services:
+  nexus:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    working_dir: /app
+    command: python scripts/run_enterprise_gate.py
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONUNBUFFERED: "1"
