@@ -22,4 +22,3 @@ include = ["nexus_os*", "nexus_observability*", "nexus_persistence*", "nexus_sec
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
-asyncio_mode = "auto"
