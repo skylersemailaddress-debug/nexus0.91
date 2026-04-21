@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from scripts._release_common import run
+try:
+    from _release_common import run
+except ModuleNotFoundError:  # pragma: no cover
+    from scripts._release_common import run
 
 
 COMMANDS = [
