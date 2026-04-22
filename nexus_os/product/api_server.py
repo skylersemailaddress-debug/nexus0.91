@@ -4,8 +4,12 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 
 from .state_inference import compute_active_intelligence_line
+from .api_contract_routes import router as contract_router
 
 app = FastAPI(title="Nexus Desktop API")
+
+# Attach commercial runtime contract routes
+app.include_router(contract_router)
 
 _GLOBAL_STATE: dict[str, object] = {
     "mission": "No mission set",
