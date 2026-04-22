@@ -3,21 +3,73 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List
 
+from .continuity import infer_continuity_label
+from .state_inference import (
+    compute_active_intelligence_line,
+    compute_next_best_move,
+    infer_need_state,
+    infer_work_state,
+)
+from .surface_model import MissionHeader, PrimarySurface, ShellFrame
+
 
 @dataclass
 class ShellState:
     mode: str = "product"
     history: List[str] = field(default_factory=list)
+    mission: str = "No mission set"
 
 
-WELCOME = """Nexus Standalone Shell\n\nCommands:\n  help      Show commands\n  status    Show shell status\n  mission   Set current mission\n  history   Show entered commands\n  quit      Exit shell\n"""
+WELCOME = """Nexus Adaptive Shell\n\nCommands:\n  help              Show commands\n  status            Show shell status\n  mission <text>    Set current mission\n  history           Show entered commands\n  why               Show current reasoning surface\n  quit              Exit shell\n"""
+
+
+def build_frame(state: ShellState) -> ShellFrame:
+    work_state = infer_work_state(state.history)
+    continuity = infer_continuity_label(state.history)
+    active_line = compute_active_intelligence_line(state.history)
+    next_move = compute_next_best_move(state.history)
+
+    header = MissionHeader(
+        mission_title=state.mission,
+        continuity_label=continuity,
+        work_state=work_state,
+        active_intelligence_line=active_line,
+    )
+    primary = PrimarySurface(
+        log_lines=state.history[-5:],
+        next_best_move=next_move,
+        composer_prompt="nexus> ",
+    )
+    return ShellFrame(header=header, primary=primary)
+
+
+def render_frame(frame: ShellFrame, state: ShellState) -> None:
+    need_state = infer_need_state(state.history)
+    print()
+    print("=" * 72)
+    print(f"Mission   : {frame.header.mission_title}")
+    print(f"Continuity: {frame.header.continuity_label}")
+    print(f"Work State: {frame.header.work_state}")
+    print(f"Need State: {need_state}")
+    print(f"Signal    : {frame.header.active_intelligence_line}")
+    print(f"Next Move : {frame.primary.next_best_move}")
+    print("-" * 72)
+    if frame.primary.log_lines:
+        print("Recent Thread:")
+        for item in frame.primary.log_lines:
+            print(f"  - {item}")
+    else:
+        print("Recent Thread:")
+        print("  - No prior commands")
+    print("=" * 72)
 
 
 def run_shell(mode: str = "product") -> None:
     state = ShellState(mode=mode)
-    mission = "No mission set"
 
     print(WELCOME)
+    render_frame(build_frame(state), state)
+
     while True:
         try:
             raw = input("nexus> ").strip()
@@ -28,26 +80,46 @@ def run_shell(mode: str = "product") -> None:
         if not raw:
             continue
 
-        state.history.append(raw)
+        if raw in {"quit", "exit"}:
+            print("[Nexus] Goodbye")
+            return
 
         if raw == "help":
             print(WELCOME)
-        elif raw == "status":
-            print(f"mode={state.mode}")
-            print(f"mission={mission}")
-            print(f"history_count={len(state.history)}")
-        elif raw == "history":
-            for idx, item in enumerate(state.history, start=1):
-                print(f"{idx}. {item}")
-        elif raw.startswith("mission"):
+            continue
+
+        if raw.startswith("mission"):
             parts = raw.split(maxsplit=1)
             if len(parts) == 1:
-                print(f"mission={mission}")
+                print(f"[Nexus] Current mission: {state.mission}")
             else:
-                mission = parts[1]
-                print(f"[Nexus] Mission set: {mission}")
-        elif raw in {"quit", "exit"}:
-            print("[Nexus] Goodbye")
-            return
-        else:
-            print(f"[Nexus] Received: {raw}")
+                state.mission = parts[1]
+                print(f"[Nexus] Mission set: {state.mission}")
+                state.history.append(raw)
+                render_frame(build_frame(state), state)
+            continue
+
+        if raw == "history":
+            if not state.history:
+                print("[Nexus] No history yet")
+            else:
+                for idx, item in enumerate(state.history, start=1):
+                    print(f"{idx}. {item}")
+            continue
+
+        if raw == "status":
+            render_frame(build_frame(state), state)
+            continue
+
+        if raw == "why":
+            frame = build_frame(state)
+            print("[Nexus] Reasoning Surface")
+            print(f"  continuity = {frame.header.continuity_label}")
+            print(f"  work_state = {frame.header.work_state}")
+            print(f"  active_intelligence = {frame.header.active_intelligence_line}")
+            print(f"  next_best_move = {frame.primary.next_best_move}")
+            continue
+
+        state.history.append(raw)
+        print(f"[Nexus] Received: {raw}")
+        render_frame(build_frame(state), state)
