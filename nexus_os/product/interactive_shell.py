@@ -27,6 +27,7 @@ class ShellState:
     auto_state: str = "idle"
     last_execution_results: List[str] = field(default_factory=list)
     live_workflow_results: List[str] = field(default_factory=list)
+    workflow_state_summary: List[str] = field(default_factory=list)
 
 
 def detect_auto_state() -> str:
@@ -108,6 +109,12 @@ def render_frame(frame: ShellFrame, state: ShellState) -> None:
         for item in state.live_workflow_results:
             print(f"  > {item}")
 
+    if state.workflow_state_summary:
+        print("-" * 72)
+        print("Workflow State:")
+        for item in state.workflow_state_summary:
+            print(f"  * {item}")
+
     if state.last_execution_results:
         print("-" * 72)
         print("Last Execution Results:")
@@ -122,18 +129,6 @@ def run_shell(mode: str = "product") -> None:
 
     print(f"[Nexus] Starting interactive shell in {mode} mode")
     print("Nexus Adaptive Shell")
-    print()
-    print("Commands:")
-    print("  help              Show commands")
-    print("  status            Show shell status")
-    print("  mission <text>    Set current mission")
-    print("  history           Show entered commands")
-    print("  why               Show reasoning surface")
-    print("  approve           Run deploy workflow")
-    print("  monitor           Run monitor workflow")
-    print("  hold              Hold current decision")
-    print("  rollback          Run rollback workflow")
-    print("  quit              Exit shell")
 
     render_frame(build_frame(state), state)
 
@@ -151,69 +146,42 @@ def run_shell(mode: str = "product") -> None:
             print("[Nexus] Goodbye")
             return
 
-        if raw == "help":
-            print("Commands: help, status, mission <text>, history, why, approve, monitor, hold, rollback, quit")
-            continue
-
         if raw.startswith("mission"):
             parts = raw.split(maxsplit=1)
-            if len(parts) == 1:
-                print(f"[Nexus] Current mission: {state.mission}")
-            else:
+            if len(parts) > 1:
                 state.mission = parts[1]
-                print(f"[Nexus] Mission set: {state.mission}")
                 state.history.append(raw)
-                render_frame(build_frame(state), state)
-            continue
 
-        if raw == "history":
-            if not state.history:
-                print("[Nexus] No history yet")
-            else:
-                for idx, item in enumerate(state.history, start=1):
-                    print(f"{idx}. {item}")
-            continue
+        elif raw == "approve":
+            results, wf_state = run_workflow(deploy_workflow())
+            state.live_workflow_results = results
+            state.last_execution_results = results.copy()
+            state.workflow_state_summary = [
+                f"current: {wf_state.progress.current_step}",
+                f"completed: {len(wf_state.progress.completed_steps)}",
+                f"failed: {len(wf_state.progress.failed_steps)}",
+            ]
 
-        if raw == "status":
-            render_frame(build_frame(state), state)
-            continue
+        elif raw == "monitor":
+            results, wf_state = run_workflow(monitor_workflow())
+            state.live_workflow_results = results
+            state.workflow_state_summary = [
+                f"current: {wf_state.progress.current_step}"
+            ]
 
-        if raw == "why":
+        elif raw == "rollback":
+            results, wf_state = run_workflow(rollback_workflow())
+            state.live_workflow_results = results
+            state.last_execution_results = results.copy()
+
+        elif raw == "why":
             panel = build_trust_panel(state.history if state.history else [state.auto_state])
             print(f"[Nexus] {panel.title}")
             for line in panel.lines:
                 print(f"  - {line}")
             continue
 
-        if raw == "approve":
-            print("[Nexus] Running deploy workflow")
-            state.live_workflow_results = run_workflow(deploy_workflow())
-            state.last_execution_results = state.live_workflow_results.copy()
-            state.history.append("approve")
-            render_frame(build_frame(state), state)
-            continue
+        else:
+            state.history.append(raw)
 
-        if raw == "monitor":
-            print("[Nexus] Running monitor workflow")
-            state.live_workflow_results = run_workflow(monitor_workflow())
-            state.history.append("monitor")
-            render_frame(build_frame(state), state)
-            continue
-
-        if raw == "hold":
-            print("[Nexus] Decision held")
-            state.history.append("hold")
-            render_frame(build_frame(state), state)
-            continue
-
-        if raw == "rollback":
-            print("[Nexus] Running rollback workflow")
-            state.live_workflow_results = run_workflow(rollback_workflow())
-            state.last_execution_results = state.live_workflow_results.copy()
-            state.history.append("rollback")
-            render_frame(build_frame(state), state)
-            continue
-
-        state.history.append(raw)
-        print(f"[Nexus] Received: {raw}")
         render_frame(build_frame(state), state)
