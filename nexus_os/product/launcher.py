@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import argparse
 
+from .interactive_shell import run_shell
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -17,8 +19,9 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
 
     mode = "developer" if args.developer else "product"
-    print(f"[Nexus] Starting standalone shell in {mode} mode")
-    print("[Nexus] Core validation surfaces are present and the product entrypoint is active.")
+    print(f"[Nexus] Starting interactive shell in {mode} mode")
+
+    run_shell(mode=mode)
 
 
 if __name__ == "__main__":
