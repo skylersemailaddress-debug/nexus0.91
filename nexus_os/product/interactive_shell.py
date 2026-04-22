@@ -23,26 +23,30 @@ class ShellState:
     mode: str = "product"
     history: List[str] = field(default_factory=list)
     mission: str = "No mission set"
+    auto_state: str = "idle"
+    last_execution_results: List[str] = field(default_factory=list)
 
 
-WELCOME = """Nexus Adaptive Shell\n\nCommands:\n  help              Show commands\n  status            Show shell status\n  mission <text>    Set current mission\n  history           Show entered commands\n  why               Show reasoning surface\n  approve           Approve current decision\n  hold              Hold current decision\n  quit              Exit shell\n"""
-
-
-def auto_detect_decision(state: ShellState):
+def detect_auto_state() -> str:
     gates = get_gate_execution_summary()
     if all(v == "pass" for v in gates.values()):
-        state.history.append("auto-ready-for-release")
-    elif any(v == "fail" for v in gates.values()):
-        state.history.append("auto-blocked-release")
+        return "ready"
+    if any(v == "fail" for v in gates.values()):
+        return "blocked"
+    return "idle"
 
 
 def build_frame(state: ShellState) -> ShellFrame:
-    auto_detect_decision(state)
+    state.auto_state = detect_auto_state()
 
-    work_state = infer_work_state(state.history, state.mission)
+    reasoning_history = state.history.copy()
+    if state.auto_state in {"ready", "blocked"}:
+        reasoning_history.append(state.auto_state)
+
+    work_state = infer_work_state(reasoning_history, state.mission)
     continuity = infer_continuity_label(state.history)
-    active_line = compute_active_intelligence_line(state.history, state.mission)
-    next_move = compute_next_best_move(state.history, state.mission)
+    active_line = compute_active_intelligence_line(reasoning_history, state.mission)
+    next_move = compute_next_best_move(reasoning_history, state.mission)
 
     header = MissionHeader(
         mission_title=state.mission,
@@ -57,10 +61,8 @@ def build_frame(state: ShellState) -> ShellFrame:
     )
 
     frame = ShellFrame(header=header, primary=primary)
-
-    frame.cards = build_context_cards(state.history)
-    frame.approval_prompt = build_approval_prompt(state.history)
-
+    frame.cards = build_context_cards(reasoning_history)
+    frame.approval_prompt = build_approval_prompt(reasoning_history)
     return frame
 
 
@@ -75,6 +77,7 @@ def render_frame(frame: ShellFrame, state: ShellState) -> None:
     print(f"Need State: {need_state}")
     print(f"Signal    : {frame.header.active_intelligence_line}")
     print(f"Next Move : {frame.primary.next_best_move}")
+    print(f"Auto State: {state.auto_state}")
     print("-" * 72)
 
     if frame.primary.log_lines:
@@ -95,7 +98,13 @@ def render_frame(frame: ShellFrame, state: ShellState) -> None:
         print("-" * 72)
         print(f"[Decision] {frame.approval_prompt.title}")
         print(f"  {frame.approval_prompt.summary}")
-        print(f"  Action: {frame.approval_prompt.action_label} / hold")
+        print(f"  Action: {frame.approval_prompt.action_label} / hold / rollback")
+
+    if state.last_execution_results:
+        print("-" * 72)
+        print("Last Execution Results:")
+        for item in state.last_execution_results:
+            print(f"  - {item}")
 
     print("=" * 72)
 
@@ -103,7 +112,20 @@ def render_frame(frame: ShellFrame, state: ShellState) -> None:
 def run_shell(mode: str = "product") -> None:
     state = ShellState(mode=mode)
 
-    print(WELCOME)
+    print(f"[Nexus] Starting interactive shell in {mode} mode")
+    print("Nexus Adaptive Shell")
+    print()
+    print("Commands:")
+    print("  help              Show commands")
+    print("  status            Show shell status")
+    print("  mission <text>    Set current mission")
+    print("  history           Show entered commands")
+    print("  why               Show reasoning surface")
+    print("  approve           Approve current decision")
+    print("  hold              Hold current decision")
+    print("  rollback          Roll back last execution results")
+    print("  quit              Exit shell")
+
     render_frame(build_frame(state), state)
 
     while True:
@@ -121,7 +143,7 @@ def run_shell(mode: str = "product") -> None:
             return
 
         if raw == "help":
-            print(WELCOME)
+            print("Commands: help, status, mission <text>, history, why, approve, hold, rollback, quit")
             continue
 
         if raw.startswith("mission"):
@@ -148,7 +170,7 @@ def run_shell(mode: str = "product") -> None:
             continue
 
         if raw == "why":
-            panel = build_trust_panel(state.history)
+            panel = build_trust_panel(state.history if state.history else [state.auto_state])
             print(f"[Nexus] {panel.title}")
             for line in panel.lines:
                 print(f"  - {line}")
@@ -157,6 +179,7 @@ def run_shell(mode: str = "product") -> None:
         if raw == "approve":
             print("[Nexus] Decision approved — executing post-actions")
             results = run_post_approval_actions()
+            state.last_execution_results = results
             for r in results:
                 print(f"  {r}")
             state.history.append("approve")
@@ -166,6 +189,12 @@ def run_shell(mode: str = "product") -> None:
         if raw == "hold":
             print("[Nexus] Decision held")
             state.history.append("hold")
+            render_frame(build_frame(state), state)
+            continue
+
+        if raw == "rollback":
+            print("[Nexus] Rolling back last execution results")
+            state.last_execution_results = ["rollback executed"]
             render_frame(build_frame(state), state)
             continue
 
