@@ -6,7 +6,6 @@ from typing import List
 from .approvals import build_approval_prompt
 from .capability_cards import build_context_cards
 from .continuity import infer_continuity_label
-from .post_approval import run_post_approval_actions
 from .runtime_adapter import get_gate_execution_summary
 from .state_inference import (
     compute_active_intelligence_line,
@@ -16,6 +15,8 @@ from .state_inference import (
 )
 from .surface_model import MissionHeader, PrimarySurface, ShellFrame
 from .trust_layer import build_trust_panel
+from .workflow_runner import run_workflow
+from .workflows import deploy_workflow, monitor_workflow, rollback_workflow
 
 
 @dataclass
@@ -25,6 +26,7 @@ class ShellState:
     mission: str = "No mission set"
     auto_state: str = "idle"
     last_execution_results: List[str] = field(default_factory=list)
+    live_workflow_results: List[str] = field(default_factory=list)
 
 
 def detect_auto_state() -> str:
@@ -100,6 +102,12 @@ def render_frame(frame: ShellFrame, state: ShellState) -> None:
         print(f"  {frame.approval_prompt.summary}")
         print(f"  Action: {frame.approval_prompt.action_label} / hold / rollback")
 
+    if state.live_workflow_results:
+        print("-" * 72)
+        print("Live Workflow View:")
+        for item in state.live_workflow_results:
+            print(f"  > {item}")
+
     if state.last_execution_results:
         print("-" * 72)
         print("Last Execution Results:")
@@ -121,9 +129,10 @@ def run_shell(mode: str = "product") -> None:
     print("  mission <text>    Set current mission")
     print("  history           Show entered commands")
     print("  why               Show reasoning surface")
-    print("  approve           Approve current decision")
+    print("  approve           Run deploy workflow")
+    print("  monitor           Run monitor workflow")
     print("  hold              Hold current decision")
-    print("  rollback          Roll back last execution results")
+    print("  rollback          Run rollback workflow")
     print("  quit              Exit shell")
 
     render_frame(build_frame(state), state)
@@ -143,7 +152,7 @@ def run_shell(mode: str = "product") -> None:
             return
 
         if raw == "help":
-            print("Commands: help, status, mission <text>, history, why, approve, hold, rollback, quit")
+            print("Commands: help, status, mission <text>, history, why, approve, monitor, hold, rollback, quit")
             continue
 
         if raw.startswith("mission"):
@@ -177,12 +186,17 @@ def run_shell(mode: str = "product") -> None:
             continue
 
         if raw == "approve":
-            print("[Nexus] Decision approved — executing post-actions")
-            results = run_post_approval_actions()
-            state.last_execution_results = results
-            for r in results:
-                print(f"  {r}")
+            print("[Nexus] Running deploy workflow")
+            state.live_workflow_results = run_workflow(deploy_workflow())
+            state.last_execution_results = state.live_workflow_results.copy()
             state.history.append("approve")
+            render_frame(build_frame(state), state)
+            continue
+
+        if raw == "monitor":
+            print("[Nexus] Running monitor workflow")
+            state.live_workflow_results = run_workflow(monitor_workflow())
+            state.history.append("monitor")
             render_frame(build_frame(state), state)
             continue
 
@@ -193,8 +207,10 @@ def run_shell(mode: str = "product") -> None:
             continue
 
         if raw == "rollback":
-            print("[Nexus] Rolling back last execution results")
-            state.last_execution_results = ["rollback executed"]
+            print("[Nexus] Running rollback workflow")
+            state.live_workflow_results = run_workflow(rollback_workflow())
+            state.last_execution_results = state.live_workflow_results.copy()
+            state.history.append("rollback")
             render_frame(build_frame(state), state)
             continue
 
