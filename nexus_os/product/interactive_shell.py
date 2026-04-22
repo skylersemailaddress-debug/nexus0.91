@@ -3,6 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List
 
+from .capability_cards import (
+    build_economics_card,
+    build_governance_card,
+    build_projection_card,
+)
 from .continuity import infer_continuity_label
 from .state_inference import (
     compute_active_intelligence_line,
@@ -11,6 +16,7 @@ from .state_inference import (
     infer_work_state,
 )
 from .surface_model import MissionHeader, PrimarySurface, ShellFrame
+from .trust_layer import build_trust_panel
 
 
 @dataclass
@@ -20,7 +26,7 @@ class ShellState:
     mission: str = "No mission set"
 
 
-WELCOME = """Nexus Adaptive Shell\n\nCommands:\n  help              Show commands\n  status            Show shell status\n  mission <text>    Set current mission\n  history           Show entered commands\n  why               Show current reasoning surface\n  quit              Exit shell\n"""
+WELCOME = """Nexus Adaptive Shell\n\nCommands:\n  help              Show commands\n  status            Show shell status\n  mission <text>    Set current mission\n  history           Show entered commands\n  why               Show reasoning surface\n  cards             Show capability cards\n  quit              Exit shell\n"""
 
 
 def build_frame(state: ShellState) -> ShellFrame:
@@ -62,6 +68,17 @@ def render_frame(frame: ShellFrame, state: ShellState) -> None:
         print("Recent Thread:")
         print("  - No prior commands")
     print("=" * 72)
+
+
+def render_cards() -> None:
+    cards = [
+        build_governance_card(),
+        build_economics_card(),
+        build_projection_card(),
+    ]
+    print("[Nexus] Capability Cards")
+    for c in cards:
+        print(f"- {c.title}: {c.summary}")
 
 
 def run_shell(mode: str = "product") -> None:
@@ -112,12 +129,14 @@ def run_shell(mode: str = "product") -> None:
             continue
 
         if raw == "why":
-            frame = build_frame(state)
-            print("[Nexus] Reasoning Surface")
-            print(f"  continuity = {frame.header.continuity_label}")
-            print(f"  work_state = {frame.header.work_state}")
-            print(f"  active_intelligence = {frame.header.active_intelligence_line}")
-            print(f"  next_best_move = {frame.primary.next_best_move}")
+            panel = build_trust_panel(state.history)
+            print(f"[Nexus] {panel.title}")
+            for line in panel.lines:
+                print(f"  - {line}")
+            continue
+
+        if raw == "cards":
+            render_cards()
             continue
 
         state.history.append(raw)
