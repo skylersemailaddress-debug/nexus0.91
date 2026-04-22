@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import json
 import os
-import sys
 from pathlib import Path
 from typing import Any
+
+from scripts.scenarios import continuity, execution, memory, ui_truth
 
 ROOT = Path(__file__).resolve().parents[1]
 REPORT = ROOT / "docs" / "release" / "evidence" / "behavioral_runtime" / "behavioral_scenarios_report.json"
@@ -22,7 +23,7 @@ SCENARIOS = {
             "restart + resume correctness",
             "objective and next step resolution",
         ],
-        "status": "blocked_until_runtime_surface_exists",
+        "status": "live_when_runtime_surface_exists",
     },
     "memory": {
         "required_markers": [
@@ -30,7 +31,7 @@ SCENARIOS = {
             "memory relevance ranking works",
             "bad memory is filtered",
         ],
-        "status": "blocked_until_runtime_surface_exists",
+        "status": "live_when_runtime_surface_exists",
     },
     "execution": {
         "required_markers": [
@@ -38,7 +39,7 @@ SCENARIOS = {
             "jobs resume after interruption",
             "retries and repair loops work",
         ],
-        "status": "blocked_until_runtime_surface_exists",
+        "status": "live_when_runtime_surface_exists",
     },
     "ui_truth": {
         "required_markers": [
@@ -46,7 +47,7 @@ SCENARIOS = {
             "no decorative panels",
             "approvals and jobs are real",
         ],
-        "status": "contract_enforced_now",
+        "status": "live_when_runtime_surface_exists",
     },
 }
 
@@ -64,12 +65,12 @@ def read_if_exists(path: Path) -> str:
 
 
 def detect_runtime_surface() -> dict[str, Any]:
-    # Fail-closed: only report a runtime surface when explicit environment variables are present.
     base_url = os.environ.get("NEXUS_RUNTIME_BASE_URL", "").strip()
     auth_token = os.environ.get("NEXUS_RUNTIME_AUTH_TOKEN", "").strip()
     return {
         "available": bool(base_url),
         "base_url": base_url,
+        "auth_token": auth_token,
         "has_auth_token": bool(auth_token),
     }
 
@@ -108,16 +109,28 @@ def main() -> int:
     result["checks"]["scenario_contract"] = scenario_checks
 
     runtime_surface = detect_runtime_surface()
-    result["checks"]["runtime_surface"] = runtime_surface
+    result["checks"]["runtime_surface"] = {
+        "available": runtime_surface["available"],
+        "base_url": runtime_surface["base_url"],
+        "has_auth_token": runtime_surface["has_auth_token"],
+    }
 
     if not runtime_surface["available"]:
         result["notes"].append(
             "Runtime surface not configured. Set NEXUS_RUNTIME_BASE_URL (and optionally NEXUS_RUNTIME_AUTH_TOKEN) to activate live scenario execution."
         )
     else:
-        result["notes"].append(
-            "Runtime surface detected. Upgrade this executor next by binding live continuity, memory, execution, and UI endpoint scenarios against the configured runtime."
-        )
+        live_results = {
+            "continuity": continuity.run(runtime_surface["base_url"], runtime_surface["auth_token"] or None),
+            "memory": memory.run(runtime_surface["base_url"], runtime_surface["auth_token"] or None),
+            "execution": execution.run(runtime_surface["base_url"], runtime_surface["auth_token"] or None),
+            "ui_truth": ui_truth.run(runtime_surface["base_url"], runtime_surface["auth_token"] or None),
+        }
+        result["checks"]["live_scenarios"] = live_results
+
+        for name, live_result in live_results.items():
+            if not live_result.get("ok", False):
+                fail(f"{name} scenario failed")
 
     REPORT.parent.mkdir(parents=True, exist_ok=True)
     REPORT.write_text(json.dumps(result, indent=2), encoding="utf-8")
