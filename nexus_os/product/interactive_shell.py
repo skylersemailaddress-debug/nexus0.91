@@ -27,10 +27,10 @@ WELCOME = """Nexus Adaptive Shell\n\nCommands:\n  help              Show command
 
 
 def build_frame(state: ShellState) -> ShellFrame:
-    work_state = infer_work_state(state.history)
+    work_state = infer_work_state(state.history, state.mission)
     continuity = infer_continuity_label(state.history)
-    active_line = compute_active_intelligence_line(state.history)
-    next_move = compute_next_best_move(state.history)
+    active_line = compute_active_intelligence_line(state.history, state.mission)
+    next_move = compute_next_best_move(state.history, state.mission)
 
     header = MissionHeader(
         mission_title=state.mission,
@@ -53,7 +53,7 @@ def build_frame(state: ShellState) -> ShellFrame:
 
 
 def render_frame(frame: ShellFrame, state: ShellState) -> None:
-    need_state = infer_need_state(state.history)
+    need_state = infer_need_state(state.history, state.mission)
 
     print()
     print("=" * 72)
