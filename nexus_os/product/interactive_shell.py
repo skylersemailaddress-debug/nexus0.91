@@ -3,11 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List
 
-from .capability_cards import (
-    build_economics_card,
-    build_governance_card,
-    build_projection_card,
-)
+from .approvals import build_approval_prompt
+from .capability_cards import build_context_cards
 from .continuity import infer_continuity_label
 from .state_inference import (
     compute_active_intelligence_line,
@@ -26,7 +23,7 @@ class ShellState:
     mission: str = "No mission set"
 
 
-WELCOME = """Nexus Adaptive Shell\n\nCommands:\n  help              Show commands\n  status            Show shell status\n  mission <text>    Set current mission\n  history           Show entered commands\n  why               Show reasoning surface\n  cards             Show capability cards\n  quit              Exit shell\n"""
+WELCOME = """Nexus Adaptive Shell\n\nCommands:\n  help              Show commands\n  status            Show shell status\n  mission <text>    Set current mission\n  history           Show entered commands\n  why               Show reasoning surface\n  approve           Approve current decision\n  hold              Hold current decision\n  quit              Exit shell\n"""
 
 
 def build_frame(state: ShellState) -> ShellFrame:
@@ -46,11 +43,18 @@ def build_frame(state: ShellState) -> ShellFrame:
         next_best_move=next_move,
         composer_prompt="nexus> ",
     )
-    return ShellFrame(header=header, primary=primary)
+
+    frame = ShellFrame(header=header, primary=primary)
+
+    frame.cards = build_context_cards(state.history)
+    frame.approval_prompt = build_approval_prompt(state.history)
+
+    return frame
 
 
 def render_frame(frame: ShellFrame, state: ShellState) -> None:
     need_state = infer_need_state(state.history)
+
     print()
     print("=" * 72)
     print(f"Mission   : {frame.header.mission_title}")
@@ -60,6 +64,7 @@ def render_frame(frame: ShellFrame, state: ShellState) -> None:
     print(f"Signal    : {frame.header.active_intelligence_line}")
     print(f"Next Move : {frame.primary.next_best_move}")
     print("-" * 72)
+
     if frame.primary.log_lines:
         print("Recent Thread:")
         for item in frame.primary.log_lines:
@@ -67,18 +72,20 @@ def render_frame(frame: ShellFrame, state: ShellState) -> None:
     else:
         print("Recent Thread:")
         print("  - No prior commands")
+
+    if frame.cards:
+        print("-" * 72)
+        print("Context Signals:")
+        for c in frame.cards:
+            print(f"  * {c.title}: {c.summary}")
+
+    if frame.approval_prompt:
+        print("-" * 72)
+        print(f"[Decision] {frame.approval_prompt.title}")
+        print(f"  {frame.approval_prompt.summary}")
+        print(f"  Action: {frame.approval_prompt.action_label} / hold")
+
     print("=" * 72)
-
-
-def render_cards() -> None:
-    cards = [
-        build_governance_card(),
-        build_economics_card(),
-        build_projection_card(),
-    ]
-    print("[Nexus] Capability Cards")
-    for c in cards:
-        print(f"- {c.title}: {c.summary}")
 
 
 def run_shell(mode: str = "product") -> None:
@@ -135,8 +142,16 @@ def run_shell(mode: str = "product") -> None:
                 print(f"  - {line}")
             continue
 
-        if raw == "cards":
-            render_cards()
+        if raw == "approve":
+            print("[Nexus] Decision approved")
+            state.history.append("approve")
+            render_frame(build_frame(state), state)
+            continue
+
+        if raw == "hold":
+            print("[Nexus] Decision held")
+            state.history.append("hold")
+            render_frame(build_frame(state), state)
             continue
 
         state.history.append(raw)
