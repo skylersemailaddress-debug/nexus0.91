@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from .runtime_adapter import get_execution_signal_summary
+from .runtime_adapter import (
+    get_execution_signal_summary,
+    get_gate_execution_summary,
+)
 from .surface_model import ApprovalPrompt
 
 
@@ -12,27 +15,29 @@ def build_approval_prompt(history: list[str]) -> ApprovalPrompt | None:
 
     if "release" in last or "ship" in last or "approve" in last:
         signals = get_execution_signal_summary()
+        gate_results = get_gate_execution_summary()
 
-        consequences = []
+        issues = []
 
-        if signals["truth_gate"] != "available":
-            consequences.append("truth gate is not available")
-        if signals["ten_ten_gate"] != "available":
-            consequences.append("10/10 gate is not available")
+        if gate_results["truth_gate"] != "pass":
+            issues.append("truth gate failing")
+        if gate_results["ten_ten_gate"] != "pass":
+            issues.append("10/10 gate failing")
         if signals["release_manifest"] != "present":
-            consequences.append("release manifest is not generated")
+            issues.append("release manifest missing")
 
-        if consequences:
+        if issues:
             summary = (
-                "Approval will proceed but: "
-                + ", ".join(consequences)
+                "Not ready for release: " + ", ".join(issues)
             )
+            alternatives = "Options: fix issues, run validation, or hold release"
         else:
-            summary = "All release conditions appear satisfied."
+            summary = "All gates passing. Release is safe to proceed."
+            alternatives = "Options: approve release or re-check validation"
 
         return ApprovalPrompt(
             title="Approval Required",
-            summary=summary,
+            summary=summary + ". " + alternatives,
             action_label="approve",
         )
 
