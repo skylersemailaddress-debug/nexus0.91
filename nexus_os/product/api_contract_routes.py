@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, UTC
 from typing import Any
 from uuid import uuid4
 
@@ -44,6 +45,27 @@ class RunCreateRequest(BaseModel):
 
 class ContextRequest(BaseModel):
     query: str
+
+
+class ArtifactBindRequest(BaseModel):
+    type: str = "log"
+    content: str
+
+
+def _now() -> str:
+    return datetime.now(UTC).isoformat()
+
+
+def _append_event(run: dict[str, Any], event_type: str, detail: str) -> None:
+    events = run.setdefault("events", [])
+    events.append({"type": event_type, "detail": detail, "ts": _now()})
+    run["updated_at"] = _now()
+
+
+def _append_artifact(run: dict[str, Any], artifact_type: str, content: str) -> None:
+    artifacts = run.setdefault("artifacts", [])
+    artifacts.append({"id": str(uuid4()), "type": artifact_type, "content": content, "ts": _now()})
+    run["updated_at"] = _now()
 
 
 @router.get("/health")
@@ -116,9 +138,59 @@ def run_create(payload: RunCreateRequest) -> dict[str, Any]:
         "run_id": run_id,
         "goal": payload.goal,
         "status": "created",
+        "attempt_count": 1,
+        "artifacts": [],
+        "events": [],
+        "created_at": _now(),
+        "updated_at": _now(),
     }
+    _append_event(run, "created", f"Run created for goal: {payload.goal}")
     _RUNS[run_id] = run
     return {"ok": True, "run_id": run_id, "run": run}
+
+
+@router.post("/runs/{run_id}/pause")
+def run_pause(run_id: str) -> dict[str, Any]:
+    run = _RUNS.get(run_id)
+    if run is None:
+        return {"ok": False, "error": "run_not_found", "run_id": run_id, "status": "missing"}
+    run["status"] = "paused"
+    _append_event(run, "paused", "Run paused")
+    _append_artifact(run, "log", "pause triggered")
+    return {"ok": True, **run}
+
+
+@router.post("/runs/{run_id}/resume")
+def run_resume(run_id: str) -> dict[str, Any]:
+    run = _RUNS.get(run_id)
+    if run is None:
+        return {"ok": False, "error": "run_not_found", "run_id": run_id, "status": "missing"}
+    run["status"] = "running"
+    _append_event(run, "resumed", "Run resumed")
+    _append_artifact(run, "log", "resume triggered")
+    return {"ok": True, **run}
+
+
+@router.post("/runs/{run_id}/retry")
+def run_retry(run_id: str) -> dict[str, Any]:
+    run = _RUNS.get(run_id)
+    if run is None:
+        return {"ok": False, "error": "run_not_found", "run_id": run_id, "status": "missing"}
+    run["attempt_count"] = int(run.get("attempt_count", 0)) + 1
+    run["status"] = "running"
+    _append_event(run, "retried", f"Retry attempt {run['attempt_count']}")
+    _append_artifact(run, "retry_evidence", f"retry attempt {run['attempt_count']}")
+    return {"ok": True, **run}
+
+
+@router.post("/runs/{run_id}/artifacts")
+def run_bind_artifact(run_id: str, payload: ArtifactBindRequest) -> dict[str, Any]:
+    run = _RUNS.get(run_id)
+    if run is None:
+        return {"ok": False, "error": "run_not_found", "run_id": run_id, "status": "missing"}
+    _append_artifact(run, payload.type, payload.content)
+    _append_event(run, "artifact_bound", f"Artifact bound: {payload.type}")
+    return {"ok": True, **run}
 
 
 @router.get("/runs/{run_id}")
