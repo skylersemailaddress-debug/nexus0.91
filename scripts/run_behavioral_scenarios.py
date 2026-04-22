@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from scripts.scenarios import continuity, execution, memory, ui_truth
+from scripts.scenarios import continuity, execution, memory, ui_truth, builder
 
 ROOT = Path(__file__).resolve().parents[1]
 REPORT = ROOT / "docs" / "release" / "evidence" / "behavioral_runtime" / "behavioral_scenarios_report.json"
@@ -14,6 +14,7 @@ REQUIRED_VALIDATORS = [
     ROOT / "scripts" / "validate_ui_master_truth.py",
     ROOT / "scripts" / "validate_behavioral_ten_ten_gate.py",
     ROOT / "scripts" / "validate_behavioral_runtime.py",
+    ROOT / "scripts" / "validate_builder_behavior.py",
 ]
 
 SCENARIOS = {
@@ -124,6 +125,7 @@ def main() -> int:
             "continuity": continuity.run(runtime_surface["base_url"], runtime_surface["auth_token"] or None),
             "memory": memory.run(runtime_surface["base_url"], runtime_surface["auth_token"] or None),
             "execution": execution.run(runtime_surface["base_url"], runtime_surface["auth_token"] or None),
+            "builder": builder.run(runtime_surface["base_url"], runtime_surface["auth_token"] or None),
             "ui_truth": ui_truth.run(runtime_surface["base_url"], runtime_surface["auth_token"] or None),
         }
         result["checks"]["live_scenarios"] = live_results
