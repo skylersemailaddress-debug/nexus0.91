@@ -8,6 +8,13 @@ from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 from .context_builder import build_context
+from .capability_store import (
+    create_capability,
+    get_capability,
+    list_capabilities,
+    update_capability,
+    validate_capability,
+)
 
 router = APIRouter()
 
@@ -49,6 +56,14 @@ class ContextRequest(BaseModel):
 
 class ArtifactBindRequest(BaseModel):
     type: str = "log"
+    content: str
+
+
+class CapabilityCreateRequest(BaseModel):
+    goal: str
+
+
+class CapabilityUpdateRequest(BaseModel):
     content: str
 
 
@@ -191,6 +206,35 @@ def run_bind_artifact(run_id: str, payload: ArtifactBindRequest) -> dict[str, An
     _append_artifact(run, payload.type, payload.content)
     _append_event(run, "artifact_bound", f"Artifact bound: {payload.type}")
     return {"ok": True, **run}
+
+
+# Phase 4 Builder Routes (additive)
+
+@router.post("/capabilities/create")
+def capability_create(payload: CapabilityCreateRequest) -> dict[str, Any]:
+    capability = create_capability(payload.goal)
+    return {"ok": True, "capability": capability}
+
+
+@router.post("/capabilities/{capability_id}/validate")
+def capability_validate_route(capability_id: str) -> dict[str, Any]:
+    capability = validate_capability(capability_id)
+    if capability is None:
+        return {"ok": False, "error": "not_found"}
+    return {"ok": True, "capability": capability}
+
+
+@router.post("/capabilities/{capability_id}/update")
+def capability_update_route(capability_id: str, payload: CapabilityUpdateRequest) -> dict[str, Any]:
+    capability = update_capability(capability_id, payload.content)
+    if capability is None:
+        return {"ok": False, "error": "not_found"}
+    return {"ok": True, "capability": capability}
+
+
+@router.get("/capabilities")
+def capability_list_route() -> dict[str, Any]:
+    return {"ok": True, "capabilities": list_capabilities()}
 
 
 @router.get("/runs/{run_id}")
