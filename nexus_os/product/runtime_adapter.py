@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import subprocess
 
 
 def repo_root() -> Path:
@@ -30,4 +31,25 @@ def get_execution_signal_summary() -> dict[str, str]:
         "release_manifest": get_release_manifest_state(),
         "product_entry": "available" if (root / "nexus_os" / "product" / "__main__.py").exists() else "missing",
         "ui_entry": "available" if (root / "nexus_os" / "ui" / "__main__.py").exists() else "missing",
+    }
+
+
+def run_gate(command: list[str]) -> str:
+    try:
+        result = subprocess.run(
+            command,
+            cwd=repo_root(),
+            capture_output=True,
+            text=True,
+            timeout=20,
+        )
+    except Exception:
+        return "error"
+    return "pass" if result.returncode == 0 else "fail"
+
+
+def get_gate_execution_summary() -> dict[str, str]:
+    return {
+        "truth_gate": run_gate(["python", "scripts/validate_nexus_master_truth.py"]),
+        "ten_ten_gate": run_gate(["python", "scripts/validate_nexus_10_10_gate.py"]),
     }
