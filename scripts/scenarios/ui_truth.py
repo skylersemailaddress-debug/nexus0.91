@@ -33,27 +33,47 @@ def _request_json(method: str, url: str, payload: dict[str, Any] | None = None, 
 def run(base_url: str, token: str | None = None) -> dict[str, Any]:
     result: dict[str, Any] = {"ok": True, "checks": {}, "errors": []}
 
-    status, resume_body = _request_json("GET", f"{base_url.rstrip('/')}/projects/default/resume", None, token)
-    ok = 200 <= status < 300
-    result["checks"]["resume"] = {"ok": ok, "status": status, "body": resume_body}
-    if not ok:
+    status, surface_body = _request_json("GET", f"{base_url.rstrip('/')}/operator/surface", None, token)
+    surface_ok = 200 <= status < 300
+    result["checks"]["surface_fetch"] = {"ok": surface_ok, "status": status, "body": surface_body}
+    if not surface_ok:
         result["ok"] = False
-        result["errors"].append("resume endpoint failed")
+        result["errors"].append("operator surface fetch failed")
         return result
 
-    text = json.dumps(resume_body).lower()
+    mission = surface_body.get("mission", {})
+    approvals = surface_body.get("approvals", {})
+    memory = surface_body.get("memory", {})
+    progress = surface_body.get("progress", {})
+    proof = surface_body.get("proof", {})
 
-    no_placeholders = "null" not in text and "placeholder" not in text
-    has_activity = any(k in text for k in ["job", "run", "objective", "message"])
+    mission_backed = bool(mission.get("runtime_backed") and mission.get("objective") and mission.get("next_step"))
+    approvals_backed = bool(approvals.get("runtime_backed"))
+    memory_present = int(memory.get("count", 0)) > 0
+    memory_influence = len(memory.get("influence_trace", [])) > 0
+    progress_runs = int(progress.get("run_count", 0)) > 0
+    proof_artifacts = len(proof.get("artifacts", [])) > 0
+    proof_ids = len(proof.get("proof_ids", [])) > 0
 
-    result["checks"]["no_placeholders"] = {"ok": no_placeholders}
-    result["checks"]["has_activity"] = {"ok": has_activity}
+    result["checks"]["mission_backed"] = {"ok": mission_backed, "mission": mission}
+    result["checks"]["approvals_backed"] = {"ok": approvals_backed, "approvals": approvals}
+    result["checks"]["memory_present"] = {"ok": memory_present, "count": memory.get("count", 0)}
+    result["checks"]["memory_influence"] = {"ok": memory_influence, "influence_trace": memory.get("influence_trace", [])}
+    result["checks"]["progress_runs"] = {"ok": progress_runs, "run_count": progress.get("run_count", 0)}
+    result["checks"]["proof_artifacts"] = {"ok": proof_artifacts, "artifact_count": len(proof.get("artifacts", []))}
+    result["checks"]["proof_ids"] = {"ok": proof_ids, "proof_ids": proof.get("proof_ids", [])}
 
-    if not no_placeholders:
-        result["ok"] = False
-        result["errors"].append("ui contains placeholders/nulls")
-    if not has_activity:
-        result["ok"] = False
-        result["errors"].append("ui not backed by runtime activity")
+    for key, message in [
+        ("mission_backed", "mission not runtime-backed"),
+        ("approvals_backed", "approvals not runtime-backed"),
+        ("memory_present", "memory not surfaced"),
+        ("memory_influence", "memory influence not surfaced"),
+        ("progress_runs", "progress not backed by runs"),
+        ("proof_artifacts", "proof artifacts missing"),
+        ("proof_ids", "proof ids missing"),
+    ]:
+        if not result["checks"][key]["ok"]:
+            result["ok"] = False
+            result["errors"].append(message)
 
     return result
