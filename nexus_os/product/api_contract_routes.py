@@ -6,6 +6,8 @@ from uuid import uuid4
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
+from .context_builder import build_context
+
 router = APIRouter()
 
 _MESSAGES: list[dict[str, Any]] = []
@@ -38,6 +40,10 @@ class MemorySearchRequest(BaseModel):
 
 class RunCreateRequest(BaseModel):
     goal: str
+
+
+class ContextRequest(BaseModel):
+    query: str
 
 
 @router.get("/health")
@@ -93,6 +99,13 @@ def memory_search(payload: MemorySearchRequest) -> dict[str, Any]:
     query = payload.query.lower()
     results = [m for m in _MEMORIES if query in m["content"].lower()][: payload.top_k]
     return {"ok": True, "results": results}
+
+
+@router.post("/projects/{project_id}/context")
+def build_project_context(project_id: str, payload: ContextRequest) -> dict[str, Any]:
+    project_memories = [m for m in _MEMORIES if m.get("project_id") == project_id]
+    context = build_context(query=payload.query, memories=project_memories)
+    return {"ok": True, **context}
 
 
 @router.post("/runs/create")
