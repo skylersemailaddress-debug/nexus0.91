@@ -14,6 +14,7 @@ from .capability_store import (
     update_capability,
     validate_capability,
 )
+from .intelligence_engine import build_plan
 
 router = APIRouter()
 
@@ -255,6 +256,22 @@ def operator_surface() -> dict[str, Any]:
             "count": len(capability_items),
         },
     }
+
+
+@router.post("/intelligence/plan")
+def intelligence_plan() -> dict[str, Any]:
+    messages = _MESSAGES[-20:]
+    memories = list(_MEMORIES)
+    runs = list(_RUNS.values())
+    capabilities = list_capabilities()
+    objective = str(_STATE.get("objective") or "No objective set")
+    return build_plan(
+        objective=objective,
+        messages=messages,
+        memories=memories,
+        runs=runs,
+        capabilities=capabilities,
+    )
 
 
 # Phase 4 Builder Routes (additive)
