@@ -6,6 +6,8 @@ from typing import List
 from .approvals import build_approval_prompt
 from .capability_cards import build_context_cards
 from .continuity import infer_continuity_label
+from .post_approval import run_post_approval_actions
+from .runtime_adapter import get_gate_execution_summary
 from .state_inference import (
     compute_active_intelligence_line,
     compute_next_best_move,
@@ -26,7 +28,17 @@ class ShellState:
 WELCOME = """Nexus Adaptive Shell\n\nCommands:\n  help              Show commands\n  status            Show shell status\n  mission <text>    Set current mission\n  history           Show entered commands\n  why               Show reasoning surface\n  approve           Approve current decision\n  hold              Hold current decision\n  quit              Exit shell\n"""
 
 
+def auto_detect_decision(state: ShellState):
+    gates = get_gate_execution_summary()
+    if all(v == "pass" for v in gates.values()):
+        state.history.append("auto-ready-for-release")
+    elif any(v == "fail" for v in gates.values()):
+        state.history.append("auto-blocked-release")
+
+
 def build_frame(state: ShellState) -> ShellFrame:
+    auto_detect_decision(state)
+
     work_state = infer_work_state(state.history, state.mission)
     continuity = infer_continuity_label(state.history)
     active_line = compute_active_intelligence_line(state.history, state.mission)
@@ -143,7 +155,10 @@ def run_shell(mode: str = "product") -> None:
             continue
 
         if raw == "approve":
-            print("[Nexus] Decision approved")
+            print("[Nexus] Decision approved — executing post-actions")
+            results = run_post_approval_actions()
+            for r in results:
+                print(f"  {r}")
             state.history.append("approve")
             render_frame(build_frame(state), state)
             continue
