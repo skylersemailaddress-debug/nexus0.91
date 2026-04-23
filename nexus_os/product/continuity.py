@@ -15,8 +15,8 @@ def resolve_objective(state: Dict[str, Any]) -> str:
         return str(objective)
 
     history = list(state.get("history") or [])
-    if history:
-        last_meaningful = str(history[-1]).strip()
+    for entry in reversed(history):
+        last_meaningful = str(entry).strip()
         if last_meaningful:
             return last_meaningful
 
@@ -98,8 +98,8 @@ def resolve_next_step(state: Dict[str, Any], memory_context: Dict[str, Any] | No
         return "Review pending approval"
 
     history = list(state.get("history") or [])
-    if history:
-        latest = str(history[-1]).strip()
+    for entry in reversed(history):
+        latest = str(entry).strip()
         if latest:
             return f"Continue: {latest}"
 
