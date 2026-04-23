@@ -105,8 +105,8 @@ def _persist_shell_state() -> None:
             auto_state="active" if _MESSAGES else "idle",
             last_post_approval_results=[],
             messages=_MESSAGES,
-            objective=str(_STATE.get("objective") or "Continuity spine validation"),
-            next_step=str(_STATE.get("next_step") or "Finish Phase 1 continuity and resume truth"),
+            objective=_STATE.get("objective"),
+            next_step=_STATE.get("next_step"),
             last_message_id=_STATE.get("last_message_id"),
         )
     )
@@ -140,10 +140,6 @@ def append_message(payload: AppendMessageRequest) -> dict[str, Any]:
     }
     _MESSAGES.append(message)
     _STATE["last_message_id"] = message["id"]
-    if not _STATE.get("objective"):
-        _STATE["objective"] = "Drive Nexus runtime continuity"
-    if not _STATE.get("next_step"):
-        _STATE["next_step"] = "Inspect resume and resolve state"
 
     _persist_shell_state()
 
