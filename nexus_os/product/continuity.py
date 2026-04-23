@@ -10,8 +10,17 @@ def infer_continuity_label(history: list[str]) -> str:
 
 
 def resolve_objective(state: Dict[str, Any]) -> str:
-    objective = state.get("objective") or state.get("mission") or "No objective resolved"
-    return str(objective)
+    objective = state.get("objective") or state.get("mission")
+    if objective:
+        return str(objective)
+
+    history = list(state.get("history") or [])
+    for entry in reversed(history):
+        last_meaningful = str(entry).strip()
+        if last_meaningful:
+            return last_meaningful
+
+    return "No objective resolved"
 
 
 def get_ranked_memory_context(state: Dict[str, Any], objective: str, current_step: str) -> Dict[str, Any]:
@@ -87,6 +96,12 @@ def resolve_next_step(state: Dict[str, Any], memory_context: Dict[str, Any] | No
     approvals = state.get("approvals") or []
     if approvals:
         return "Review pending approval"
+
+    history = list(state.get("history") or [])
+    for entry in reversed(history):
+        latest = str(entry).strip()
+        if latest:
+            return f"Continue: {latest}"
 
     return "No next step resolved"
 
