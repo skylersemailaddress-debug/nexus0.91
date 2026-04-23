@@ -13,6 +13,7 @@ CONSTITUTION_PATH = RELEASE_DIR / "NEXUS_TRUTH_CONSTITUTION.md"
 MATURITY_PATH = RELEASE_DIR / "NEXUS_MATURITY_LABELS.md"
 SCORECARD_PATH = RELEASE_DIR / "NEXUS_SCORECARD.json"
 PROOF_MATRIX_PATH = RELEASE_DIR / "NEXUS_PROOF_MATRIX.md"
+CONTINUITY_REPORT_PATH = EVIDENCE_DIR / "continuity" / "continuity_validation_report.json"
 REPORT_PATH = EVIDENCE_DIR / "enterprise_gate" / "enterprise_gate_report.json"
 
 REQUIRED_SCORECARD_KEYS = {
@@ -87,6 +88,10 @@ def read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def read_json(path: Path) -> Dict[str, object]:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
 def ensure_exists(path: Path, label: str) -> CheckResult:
     exists = path.exists()
     return CheckResult(
@@ -117,7 +122,7 @@ def validate_maturity_labels() -> CheckResult:
 
 
 def validate_scorecard() -> CheckResult:
-    data = json.loads(read_text(SCORECARD_PATH))
+    data = read_json(SCORECARD_PATH)
     details: List[str] = []
     passed = True
     for top_level, required_keys in REQUIRED_SCORECARD_KEYS.items():
@@ -157,6 +162,7 @@ def validate_evidence_tree() -> CheckResult:
         EVIDENCE_DIR / "scorecard",
         EVIDENCE_DIR / "proof_matrix",
         EVIDENCE_DIR / "enterprise_gate",
+        EVIDENCE_DIR / "continuity",
     ]
     missing = [str(path) for path in required_dirs if not path.exists()]
     return CheckResult(
@@ -164,6 +170,34 @@ def validate_evidence_tree() -> CheckResult:
         passed=not missing,
         details=[f"Missing evidence directory: {path}" for path in missing],
     )
+
+
+def validate_continuity_gate() -> CheckResult:
+    if not CONTINUITY_REPORT_PATH.exists():
+        return CheckResult(
+            name="continuity_gate",
+            passed=False,
+            details=[f"Missing continuity validation report: {CONTINUITY_REPORT_PATH}"],
+        )
+
+    try:
+        report = read_json(CONTINUITY_REPORT_PATH)
+    except Exception as exc:
+        return CheckResult(
+            name="continuity_gate",
+            passed=False,
+            details=[f"Invalid continuity validation report JSON: {exc}"],
+        )
+
+    if report.get("passed") is True:
+        return CheckResult(name="continuity_gate", passed=True, details=[])
+
+    details = ["Continuity validation did not pass"]
+    for check in report.get("checks", []):
+        if not check.get("passed"):
+            for detail in check.get("details", []):
+                details.append(str(detail))
+    return CheckResult(name="continuity_gate", passed=False, details=details)
 
 
 def build_report(results: List[CheckResult]) -> Dict[str, object]:
@@ -198,6 +232,7 @@ def main() -> int:
             validate_scorecard(),
             validate_proof_matrix(),
             validate_evidence_tree(),
+            validate_continuity_gate(),
         ])
 
     report = build_report(results)
