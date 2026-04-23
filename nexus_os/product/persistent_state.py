@@ -12,8 +12,8 @@ class PersistentShellState:
     last_post_approval_results: list[str] = field(default_factory=list)
 
     messages: list[dict[str, Any]] = field(default_factory=list)
-    objective: str = "Continuity spine validation"
-    next_step: str = "Finish Phase 1 continuity and resume truth"
+    objective: str | None = None
+    next_step: str | None = None
     last_message_id: str | None = None
 
 
@@ -33,8 +33,8 @@ def load_state() -> PersistentShellState:
             auto_state=data.get("auto_state", "idle"),
             last_post_approval_results=data.get("last_post_approval_results", []),
             messages=data.get("messages", []),
-            objective=data.get("objective", "Continuity spine validation"),
-            next_step=data.get("next_step", "Finish Phase 1 continuity and resume truth"),
+            objective=data.get("objective"),
+            next_step=data.get("next_step"),
             last_message_id=data.get("last_message_id"),
         )
     except Exception:
