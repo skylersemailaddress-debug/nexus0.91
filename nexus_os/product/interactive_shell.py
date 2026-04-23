@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List
 
+from nexus_os.persistence.store import load_state
 from .approvals import build_approval_prompt
 from .capability_cards import build_context_cards
 from .continuity import infer_continuity_label
@@ -13,21 +14,17 @@ from .state_inference import (
     infer_need_state,
     infer_work_state,
 )
-from .surface_model import MissionHeader, PrimarySurface, ShellFrame
+from .surface_model import MissionHeader, PrimarySurface, ShellFrame, UIControls
 from .trust_layer import build_trust_panel
-from .workflow_runner import run_workflow
-from .workflows import deploy_workflow, monitor_workflow, rollback_workflow
 
 
 @dataclass
 class ShellState:
-    mode: str = "product"
+    mode: str = "focus"
     history: List[str] = field(default_factory=list)
     mission: str = "No mission set"
-    auto_state: str = "idle"
-    last_execution_results: List[str] = field(default_factory=list)
-    live_workflow_results: List[str] = field(default_factory=list)
-    workflow_state_summary: List[str] = field(default_factory=list)
+    pinned: List[str] = field(default_factory=list)
+    hover: str = "mission"
 
 
 def detect_auto_state() -> str:
@@ -39,149 +36,113 @@ def detect_auto_state() -> str:
     return "idle"
 
 
+def _load_runtime():
+    state = load_state()
+    return (
+        state.get("messages", []),
+        state.get("memories", []),
+        state.get("runs", {}),
+        state.get("approvals", []),
+    )
+
+
 def build_frame(state: ShellState) -> ShellFrame:
-    state.auto_state = detect_auto_state()
+    messages, memories, runs, approvals = _load_runtime()
 
-    reasoning_history = state.history.copy()
-    if state.auto_state in {"ready", "blocked"}:
-        reasoning_history.append(state.auto_state)
+    history = [m.get("text", "") for m in messages]
+    mission = history[-1] if history else "No mission set"
 
-    work_state = infer_work_state(reasoning_history, state.mission)
-    continuity = infer_continuity_label(state.history)
-    active_line = compute_active_intelligence_line(reasoning_history, state.mission)
-    next_move = compute_next_best_move(reasoning_history, state.mission)
+    work_state = infer_work_state(history, mission)
+    continuity = infer_continuity_label(history)
+    active_line = compute_active_intelligence_line(history, mission)
+    next_move = compute_next_best_move(history, mission)
 
     header = MissionHeader(
-        mission_title=state.mission,
+        mission_title=mission,
         continuity_label=continuity,
         work_state=work_state,
         active_intelligence_line=active_line,
     )
+
     primary = PrimarySurface(
-        log_lines=state.history[-5:],
+        log_lines=history[-5:],
         next_best_move=next_move,
         composer_prompt="nexus> ",
     )
 
-    frame = ShellFrame(header=header, primary=primary)
-    frame.cards = build_context_cards(reasoning_history)
-    frame.approval_prompt = build_approval_prompt(reasoning_history)
+    controls = UIControls(
+        mode=state.mode,
+        pinned_sections=state.pinned,
+        hover_target=state.hover,
+        palette_commands=["mission", "approve", "rollback", "monitor"],
+    )
+
+    frame = ShellFrame(header=header, primary=primary, controls=controls)
+    frame.cards = build_context_cards(history)
+    frame.approval_prompt = build_approval_prompt(history)
+    frame.trust_panel = build_trust_panel(history)
     return frame
 
 
-def render_frame(frame: ShellFrame, state: ShellState) -> None:
-    need_state = infer_need_state(state.history, state.mission)
-
-    print()
+def render_frame(frame: ShellFrame) -> None:
     print("=" * 72)
-    print(f"Mission   : {frame.header.mission_title}")
-    print(f"Continuity: {frame.header.continuity_label}")
-    print(f"Work State: {frame.header.work_state}")
-    print(f"Need State: {need_state}")
-    print(f"Signal    : {frame.header.active_intelligence_line}")
-    print(f"Next Move : {frame.primary.next_best_move}")
-    print(f"Auto State: {state.auto_state}")
-    print("-" * 72)
+    print(f"Mission: {frame.header.mission_title}")
+    print(f"State: {frame.header.work_state} | {frame.header.continuity_label}")
+    print(f"Signal: {frame.header.active_intelligence_line}")
+    print(f"Next: {frame.primary.next_best_move}")
 
-    if frame.primary.log_lines:
-        print("Recent Thread:")
-        for item in frame.primary.log_lines:
-            print(f"  - {item}")
-    else:
-        print("Recent Thread:")
-        print("  - No prior commands")
+    print(f"Mode: {frame.controls.mode} | Hover: {frame.controls.hover_target} | Pinned: {frame.controls.pinned_sections}")
+
+    print("-" * 72)
+    for line in frame.primary.log_lines:
+        print(f"> {line}")
 
     if frame.cards:
         print("-" * 72)
-        print("Context Signals:")
         for c in frame.cards:
-            print(f"  * {c.title}: {c.summary}")
+            if c.title in frame.controls.pinned_sections or frame.controls.hover_target == c.title:
+                print(f"[{c.title}] {c.summary}")
 
     if frame.approval_prompt:
         print("-" * 72)
-        print(f"[Decision] {frame.approval_prompt.title}")
-        print(f"  {frame.approval_prompt.summary}")
-        print(f"  Action: {frame.approval_prompt.action_label} / hold / rollback")
-
-    if state.live_workflow_results:
-        print("-" * 72)
-        print("Live Workflow View:")
-        for item in state.live_workflow_results:
-            print(f"  > {item}")
-
-    if state.workflow_state_summary:
-        print("-" * 72)
-        print("Workflow State:")
-        for item in state.workflow_state_summary:
-            print(f"  * {item}")
-
-    if state.last_execution_results:
-        print("-" * 72)
-        print("Last Execution Results:")
-        for item in state.last_execution_results:
-            print(f"  - {item}")
+        print(f"APPROVAL: {frame.approval_prompt.title}")
 
     print("=" * 72)
 
 
-def run_shell(mode: str = "product") -> None:
-    state = ShellState(mode=mode)
-
-    print(f"[Nexus] Starting interactive shell in {mode} mode")
-    print("Nexus Adaptive Shell")
-
-    render_frame(build_frame(state), state)
+def run_shell() -> None:
+    state = ShellState()
 
     while True:
-        try:
-            raw = input("nexus> ").strip()
-        except (EOFError, KeyboardInterrupt):
-            print("\n[Nexus] Exiting shell")
+        frame = build_frame(state)
+        render_frame(frame)
+
+        cmd = input("nexus> ").strip()
+
+        if cmd in {"exit", "quit"}:
             return
 
-        if not raw:
-            continue
+        if cmd.startswith("pin "):
+            section = cmd.split(" ", 1)[1]
+            if section not in state.pinned:
+                state.pinned.append(section)
 
-        if raw in {"quit", "exit"}:
-            print("[Nexus] Goodbye")
-            return
+        elif cmd.startswith("unpin "):
+            section = cmd.split(" ", 1)[1]
+            if section in state.pinned:
+                state.pinned.remove(section)
 
-        if raw.startswith("mission"):
-            parts = raw.split(maxsplit=1)
-            if len(parts) > 1:
-                state.mission = parts[1]
-                state.history.append(raw)
+        elif cmd.startswith("hover "):
+            state.hover = cmd.split(" ", 1)[1]
 
-        elif raw == "approve":
-            results, wf_state = run_workflow(deploy_workflow())
-            state.live_workflow_results = results
-            state.last_execution_results = results.copy()
-            state.workflow_state_summary = [
-                f"current: {wf_state.progress.current_step}",
-                f"completed: {len(wf_state.progress.completed_steps)}",
-                f"failed: {len(wf_state.progress.failed_steps)}",
-            ]
+        elif cmd.startswith("mode "):
+            state.mode = cmd.split(" ", 1)[1]
 
-        elif raw == "monitor":
-            results, wf_state = run_workflow(monitor_workflow())
-            state.live_workflow_results = results
-            state.workflow_state_summary = [
-                f"current: {wf_state.progress.current_step}"
-            ]
-
-        elif raw == "rollback":
-            results, wf_state = run_workflow(rollback_workflow())
-            state.live_workflow_results = results
-            state.last_execution_results = results.copy()
-
-        elif raw == "why":
-            panel = build_trust_panel(state.history if state.history else [state.auto_state])
-            print(f"[Nexus] {panel.title}")
-            for line in panel.lines:
-                print(f"  - {line}")
-            continue
+        elif cmd == "palette":
+            print("Commands:", frame.controls.palette_commands)
 
         else:
-            state.history.append(raw)
+            # append real message to runtime
+            messages, *_ = _load_runtime()
+            state.history.append(cmd)
 
-        render_frame(build_frame(state), state)
