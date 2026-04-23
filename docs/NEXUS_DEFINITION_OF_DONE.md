@@ -13,5 +13,5 @@ NEXUS is only considered finished when all of the following are true:
 
 ## Locked validation path
 - python -m pytest tests -q
-- python scripts\run_enterprise_gate.py
-- python scripts\security_baseline.py
+- python scripts/run_enterprise_gate.py
+- python scripts/security_baseline.py

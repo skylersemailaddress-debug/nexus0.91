@@ -91,7 +91,7 @@ Fails if:
 ## Required Validators
 
 The following validators must exist or be upgraded in this phase:
-- `scripts/validate_execution_resume.py`
+- `scripts/validate_execution.py`
 - `scripts/run_execution_scenarios.py`
 - `scripts/validate_nexus_enterprise.py` integration for execution evidence
 
