@@ -48,6 +48,14 @@ class ApprovalPrompt:
 
 
 @dataclass
+class UIControls:
+    mode: str = "focus"
+    pinned_sections: List[str] = field(default_factory=list)
+    hover_target: str = "mission"
+    palette_commands: List[str] = field(default_factory=list)
+
+
+@dataclass
 class ShellFrame:
     header: MissionHeader
     primary: PrimarySurface
@@ -55,3 +63,4 @@ class ShellFrame:
     cards: List[CapabilityCard] = field(default_factory=list)
     trust_panel: TrustPanel | None = None
     approval_prompt: ApprovalPrompt | None = None
+    controls: UIControls = field(default_factory=UIControls)
