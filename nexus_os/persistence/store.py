@@ -9,6 +9,13 @@ DEFAULT_STATE: dict[str, Any] = {
     "memories": [],
     "runs": {},
     "approvals": [],
+    "ui_state": {
+        "mode": "focus",
+        "density": "comfortable",
+        "pinned_sections": [],
+        "hover_target": "mission",
+        "saved_layout": "default",
+    },
 }
 
 
@@ -24,7 +31,10 @@ def load_state() -> dict[str, Any]:
     path = state_path()
     if not path.exists():
         return json.loads(json.dumps(DEFAULT_STATE))
-    return json.loads(path.read_text(encoding="utf-8"))
+    state = json.loads(path.read_text(encoding="utf-8"))
+    if "ui_state" not in state:
+        state["ui_state"] = json.loads(json.dumps(DEFAULT_STATE["ui_state"]))
+    return state
 
 
 def save_state(state: dict[str, Any]) -> None:
