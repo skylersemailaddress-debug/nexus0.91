@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from nexus_os.persistence.store import load_state, save_state
+from nexus_os.observability.runtime_audit import append_audit_event
 from .context_builder import build_context
 from .state_inference import compute_next_best_move
 
@@ -64,6 +65,7 @@ def append_message(payload: MessageAppendRequest) -> dict[str, Any]:
     }
     state["messages"].append(record)
     save_state(state)
+    append_audit_event("message_append", record)
     return {"ok": True, "message": record}
 
 
@@ -101,6 +103,7 @@ def memory_upsert(payload: MemoryUpsertRequest) -> dict[str, Any]:
     else:
         existing.update(record)
     save_state(state)
+    append_audit_event("memory_upsert", record)
     return {"ok": True, "memory": record}
 
 
@@ -108,6 +111,7 @@ def memory_upsert(payload: MemoryUpsertRequest) -> dict[str, Any]:
 def memory_search(payload: MemorySearchRequest) -> dict[str, Any]:
     state = load_state()
     context = build_context(query=payload.query, memories=list(state["memories"]))
+    append_audit_event("memory_search", {"query": payload.query})
     return {"ok": True, **context}
 
 
@@ -116,6 +120,7 @@ def state_build_context(payload: BuildContextRequest) -> dict[str, Any]:
     state = load_state()
     context = build_context(query=payload.query, memories=list(state["memories"]))
     context["messages"] = list(state["messages"][-10:])
+    append_audit_event("build_context", {"query": payload.query})
     return {"ok": True, **context}
 
 
@@ -132,6 +137,7 @@ def runs_create(payload: RunCreateRequest) -> dict[str, Any]:
     }
     state["runs"][run_id] = run
     save_state(state)
+    append_audit_event("run_create", run)
     return {"ok": True, "run": run}
 
 
@@ -152,6 +158,7 @@ def runs_pause(run_id: str) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail="run not found")
     run["status"] = "paused"
     save_state(state)
+    append_audit_event("run_pause", {"run_id": run_id})
     return {"ok": True, "run": run}
 
 
@@ -163,6 +170,7 @@ def runs_resume(run_id: str) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail="run not found")
     run["status"] = "running"
     save_state(state)
+    append_audit_event("run_resume", {"run_id": run_id})
     return {"ok": True, "run": run}
 
 
@@ -175,6 +183,7 @@ def runs_retry(run_id: str) -> dict[str, Any]:
     run["status"] = "retrying"
     run["attempt_count"] = int(run.get("attempt_count", 1)) + 1
     save_state(state)
+    append_audit_event("run_retry", {"run_id": run_id})
     return {"ok": True, "run": run}
 
 
