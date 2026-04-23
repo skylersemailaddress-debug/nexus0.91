@@ -3,12 +3,13 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from nexus_os.product.continuity import build_resume_snapshot
 
 ROOT = Path(__file__).resolve().parents[1]
 EVIDENCE_DIR = ROOT / "docs" / "release" / "evidence" / "continuity"
+SCENARIO_REPORT_PATH = EVIDENCE_DIR / "continuity_scenario_report.json"
 
 SCENARIOS = [
     "restart_active_mission",
@@ -71,29 +72,78 @@ def _scenario_state(name: str) -> Dict[str, Any]:
     return base
 
 
-def emit_snapshot(name: str) -> None:
-    path = EVIDENCE_DIR / f"{name}.json"
+def _normalize_snapshot(snapshot: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "objective": snapshot.get("objective"),
+        "next_step": snapshot.get("next_step"),
+        "trajectory": snapshot.get("trajectory"),
+        "approvals": snapshot.get("approvals", []),
+        "runs": snapshot.get("runs", []),
+        "artifacts": snapshot.get("artifacts", []),
+        "memory_context": snapshot.get("memory_context", {}),
+        "continuity_label": snapshot.get("continuity_label"),
+    }
+
+
+def _scenario_result(name: str) -> Dict[str, Any]:
     state = _scenario_state(name)
-    snapshot = build_resume_snapshot(state)
-    snapshot.update(
+    before = build_resume_snapshot(state)
+
+    persisted_payload = json.loads(json.dumps(state))
+    after = build_resume_snapshot(persisted_payload)
+
+    before_norm = _normalize_snapshot(before)
+    after_norm = _normalize_snapshot(after)
+    equivalent = before_norm == after_norm
+
+    return {
+        "scenario": name,
+        "timestamp": _timestamp(),
+        "before": before_norm,
+        "after": after_norm,
+        "equivalent_after_restart": equivalent,
+        "passed": equivalent,
+    }
+
+
+def _legacy_snapshot_payload(result: Dict[str, Any]) -> Dict[str, Any]:
+    after = dict(result["after"])
+    after.update(
         {
-            "scenario": name,
-            "timestamp": _timestamp(),
-            "passed": True,
+            "scenario": result["scenario"],
+            "timestamp": result["timestamp"],
+            "passed": result["passed"],
             "note": "State-backed continuity scenario snapshot",
         }
     )
-    path.write_text(json.dumps(snapshot, indent=2), encoding="utf-8")
+    return after
+
+
+def _emit_legacy_snapshot(result: Dict[str, Any]) -> None:
+    path = EVIDENCE_DIR / f"{result['scenario']}.json"
+    path.write_text(json.dumps(_legacy_snapshot_payload(result), indent=2), encoding="utf-8")
 
 
 def main() -> int:
     EVIDENCE_DIR.mkdir(parents=True, exist_ok=True)
 
+    results: List[Dict[str, Any]] = []
     for scenario in SCENARIOS:
-        emit_snapshot(scenario)
+        result = _scenario_result(scenario)
+        _emit_legacy_snapshot(result)
+        results.append(result)
 
-    print(f"[continuity] emitted {len(SCENARIOS)} continuity scenarios")
-    return 0
+    report = {
+        "generated_at": _timestamp(),
+        "scenario_count": len(results),
+        "passed": all(result["passed"] for result in results),
+        "results": results,
+    }
+    SCENARIO_REPORT_PATH.write_text(json.dumps(report, indent=2), encoding="utf-8")
+
+    print(f"[continuity] emitted {len(results)} continuity scenarios")
+    print(json.dumps(report, indent=2))
+    return 0 if report["passed"] else 1
 
 
 if __name__ == "__main__":

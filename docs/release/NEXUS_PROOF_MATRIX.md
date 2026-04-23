@@ -16,7 +16,7 @@ This file defines required proof scenarios for each constitution section.
 
 ## Execution
 - scenario: interrupt_and_resume_run
-- validator: validate_execution_resume.py
+- validator: validate_execution.py
 - evidence: evidence/execution/resume_run.json
 - pass: run resumes and completes
 

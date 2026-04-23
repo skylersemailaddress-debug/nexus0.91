@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from scripts._release_common import REPO_ROOT, fail
+try:
+    from _release_common import REPO_ROOT, fail
+except ModuleNotFoundError:  # pragma: no cover
+    from scripts._release_common import REPO_ROOT, fail
 
 BANNED_PATTERNS = (
     'assert False',
