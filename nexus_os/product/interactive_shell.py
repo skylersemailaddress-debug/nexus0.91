@@ -12,6 +12,7 @@ from .state_inference import (
 
 
 DEFAULT_QUICK_ACTIONS = ["approve", "pause", "resume", "mission"]
+COLUMN_WIDTH = 22
 
 
 def _get_ui(runtime: dict) -> dict:
@@ -20,7 +21,7 @@ def _get_ui(runtime: dict) -> dict:
     ui.setdefault("density", "comfortable")
     ui.setdefault("pinned_sections", [])
     ui.setdefault("hover_target", "mission")
-    ui.setdefault("saved_layout", "default")
+    ui.setdefault("saved_layout", "columns")
     ui.setdefault("quick_actions", list(DEFAULT_QUICK_ACTIONS))
     return ui
 
@@ -37,40 +38,85 @@ def _density_limits(density: str) -> tuple[int, int, int]:
     return (5, 3, 3)
 
 
-def _section_weight(section: str, ui: dict) -> int:
+def _ambient_target(messages: list[dict], memories: list[dict], runs: dict, approvals: list[dict]) -> str:
+    pending = sum(1 for item in approvals if item.get("status") == "pending")
+    active_runs = sum(1 for item in runs.values() if item.get("status") in {"running", "retrying", "active"})
+    if pending:
+        return "approvals"
+    if active_runs:
+        return "runs"
+    if memories:
+        return "memory"
+    if messages:
+        return "context"
+    return "mission"
+
+
+def _section_weight(section: str, ui: dict, ambient_target: str) -> int:
     weight = 0
-    if section == ui.get("hover_target"):
+    if section == ambient_target:
         weight += 2
-    if section in ui.get("pinned_sections", []):
+    if section == ui.get("hover_target"):
         weight += 3
+    if section in ui.get("pinned_sections", []):
+        weight += 4
     return weight
+
+
+def _fit(text: str, width: int = COLUMN_WIDTH) -> str:
+    text = str(text)
+    if len(text) <= width:
+        return text.ljust(width)
+    return (text[: width - 1] + "…")
+
+
+def _columnize(title: str, lines: list[str], width: int = COLUMN_WIDTH, height: int = 8) -> list[str]:
+    normalized = [title.center(width), ("-" * width)]
+    for line in lines[: height - 2]:
+        normalized.append(_fit(line, width))
+    while len(normalized) < height:
+        normalized.append(" ".ljust(width))
+    return normalized
+
+
+def _render_columns(left: list[str], center: list[str], right: list[str]) -> None:
+    height = max(len(left), len(center), len(right))
+    while len(left) < height:
+        left.append(" ".ljust(COLUMN_WIDTH))
+    while len(center) < height:
+        center.append(" ".ljust(COLUMN_WIDTH))
+    while len(right) < height:
+        right.append(" ".ljust(COLUMN_WIDTH))
+    for a, b, c in zip(left, center, right):
+        print(f"{a} | {b} | {c}")
 
 
 def build_frame(runtime: dict) -> dict:
     messages = runtime.get("messages", [])
     memories = runtime.get("memories", [])
     runs = runtime.get("runs", {})
+    approvals = runtime.get("approvals", [])
     ui = _get_ui(runtime)
 
     history = [m.get("text", "") for m in messages]
     mission = history[-1] if history else "No mission set"
     log_limit, memory_limit, run_limit = _density_limits(ui["density"])
+    ambient_target = _ambient_target(messages, memories, runs, approvals)
 
     context_cards = build_context_cards(history)
     weighted_cards = sorted(
         context_cards,
-        key=lambda card: _section_weight(card.title, ui),
+        key=lambda card: _section_weight(card.title, ui, ambient_target),
         reverse=True,
     )
-
     weighted_memories = sorted(
         memories,
-        key=lambda m: _section_weight("memory", ui) + (1 if m.get("kind") == "note" else 0),
+        key=lambda m: _section_weight("memory", ui, ambient_target) + (1 if m.get("kind") == "note" else 0),
         reverse=True,
     )
     weighted_runs = sorted(
         list(runs.values()),
-        key=lambda r: _section_weight("runs", ui) + (1 if r.get("status") in {"running", "retrying"} else 0),
+        key=lambda r: _section_weight("runs", ui, ambient_target) + (1 if r.get("status") in {"running", "retrying", "active"} else 0),
         reverse=True,
     )
 
@@ -80,6 +126,7 @@ def build_frame(runtime: dict) -> dict:
             "state": infer_work_state(history, mission),
             "continuity": infer_continuity_label(history),
             "signal": compute_active_intelligence_line(history, mission),
+            "ambient_target": ambient_target,
         },
         "primary": {
             "log": history[-log_limit:],
@@ -89,6 +136,7 @@ def build_frame(runtime: dict) -> dict:
             "cards": weighted_cards,
             "memories": weighted_memories[:memory_limit],
             "runs": weighted_runs[:run_limit],
+            "approvals": approvals[:3],
         },
         "controls": ui,
     }
@@ -99,27 +147,26 @@ def render_frame(frame: dict) -> None:
     print(f"Mission: {frame['header']['mission']}")
     print(f"State: {frame['header']['state']} | {frame['header']['continuity']}")
     print(f"Signal: {frame['header']['signal']}")
+    print(f"Ambient reveal: {frame['header']['ambient_target']}")
+    print("=" * 72)
 
-    print("-" * 72)
-    print("PRIMARY")
-    for line in frame["primary"]["log"]:
-        print(f"> {line}")
-    print(f"Next: {frame['primary']['next']}")
+    left_lines = [f"> {line}" for line in frame["primary"]["log"]]
+    left_lines.append(f"Next: {frame['primary']['next']}")
 
-    print("-" * 72)
-    print("CONTEXT")
-    for card in frame["context"]["cards"]:
-        print(f"[{card.title}] {card.summary}")
+    center_lines = [f"[{card.title}] {card.summary}" for card in frame["context"]["cards"]]
+    if not center_lines:
+        center_lines = ["No context cards"]
 
-    print("-" * 72)
-    print("MEMORY")
-    for m in frame["context"]["memories"]:
-        print(f"- {m.get('content')}")
+    right_lines = [f"mem: {m.get('content')}" for m in frame["context"]["memories"]]
+    right_lines += [f"run: {r.get('run_id')} {r.get('status')}" for r in frame["context"]["runs"]]
+    right_lines += [f"approval: {a.get('status')}" for a in frame["context"]["approvals"]]
+    if not right_lines:
+        right_lines = ["No active runtime items"]
 
-    print("-" * 72)
-    print("RUNS")
-    for r in frame["context"]["runs"]:
-        print(f"- {r.get('run_id')} | {r.get('status')}")
+    left = _columnize("PRIMARY", left_lines)
+    center = _columnize("CONTEXT", center_lines)
+    right = _columnize("RUNTIME", right_lines)
+    _render_columns(left, center, right)
 
     print("-" * 72)
     print(f"Controls: {frame['controls']}")
