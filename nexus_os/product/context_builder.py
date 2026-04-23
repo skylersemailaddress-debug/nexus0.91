@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from .memory_model import deduplicate_memories, resolve_contradictions
+
 
 def _normalize_terms(text: str) -> set[str]:
     cleaned: set[str] = set()
@@ -15,12 +17,19 @@ def _normalize_terms(text: str) -> set[str]:
 def build_context(*, query: str, memories: list[dict[str, Any]]) -> dict[str, Any]:
     query_terms = _normalize_terms(query)
 
+    dedup = deduplicate_memories(memories)
+    dedup_active = dedup["active"]
+
+    resolved = resolve_contradictions(dedup_active)
+    active_memories = resolved["active"]
+    suppressed_memories = dedup["suppressed"] + resolved["suppressed"]
+
     selected_memories: list[dict[str, Any]] = []
     filtered_memories: list[dict[str, Any]] = []
     influence_trace: list[dict[str, Any]] = []
 
     scored: list[tuple[float, dict[str, Any], str]] = []
-    for memory in memories:
+    for memory in active_memories:
         content = str(memory.get("content", memory.get("text", "")))
         content_terms = _normalize_terms(content)
         overlap_terms = sorted(query_terms.intersection(content_terms))
@@ -50,6 +59,7 @@ def build_context(*, query: str, memories: list[dict[str, Any]]) -> dict[str, An
                     "reason": "selected_for_context",
                     "matched_terms": memory.get("matched_terms", []),
                     "score": score,
+                    "truth_state": memory.get("truth_state", "active"),
                 }
             )
         else:
@@ -74,11 +84,13 @@ def build_context(*, query: str, memories: list[dict[str, Any]]) -> dict[str, An
         "query": query,
         "selected_memories": selected_memories,
         "filtered_memories": filtered_memories,
+        "suppressed_memories": suppressed_memories,
         "influence_trace": influence_trace,
         "decision": {
             "objective": query,
             "next_step": next_step,
             "memory_influenced": bool(selected_memories),
             "selected_memory_count": len(selected_memories),
+            "suppressed_memory_count": len(suppressed_memories),
         },
     }
