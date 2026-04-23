@@ -17,6 +17,7 @@ CONTINUITY_REPORT_PATH = EVIDENCE_DIR / "continuity" / "continuity_validation_re
 MEMORY_REPORT_PATH = EVIDENCE_DIR / "memory" / "memory_validation_report.json"
 EXECUTION_REPORT_PATH = EVIDENCE_DIR / "execution" / "execution_validation_report.json"
 UI_REPORT_PATH = EVIDENCE_DIR / "ui" / "ui_validation_report.json"
+READINESS_REPORT_PATH = EVIDENCE_DIR / "readiness" / "readiness_validation_report.json"
 REPORT_PATH = EVIDENCE_DIR / "enterprise_gate" / "enterprise_gate_report.json"
 
 REQUIRED_SCORECARD_KEYS = {
@@ -169,6 +170,7 @@ def validate_evidence_tree() -> CheckResult:
         EVIDENCE_DIR / "memory",
         EVIDENCE_DIR / "execution",
         EVIDENCE_DIR / "ui",
+        EVIDENCE_DIR / "readiness",
     ]
     missing = [str(path) for path in required_dirs if not path.exists()]
     return CheckResult(
@@ -222,6 +224,10 @@ def validate_ui_gate() -> CheckResult:
     return _validate_report_gate("ui_gate", UI_REPORT_PATH, "ui")
 
 
+def validate_readiness_gate() -> CheckResult:
+    return _validate_report_gate("readiness_gate", READINESS_REPORT_PATH, "readiness")
+
+
 def build_report(results: List[CheckResult]) -> Dict[str, object]:
     return {
         "passed": all(result.passed for result in results),
@@ -258,6 +264,7 @@ def main() -> int:
             validate_memory_gate(),
             validate_execution_gate(),
             validate_ui_gate(),
+            validate_readiness_gate(),
         ])
 
     report = build_report(results)
