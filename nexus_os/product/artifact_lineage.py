@@ -11,6 +11,7 @@ def bind_artifact(job: dict[str, Any], run_id: str, artifact: dict[str, Any]) ->
         **artifact,
         "run_id": run_id,
         "job_id": updated.get("id"),
+        "input_context": updated.get("input_context", {}),
     }
     updated["artifacts"].append(lineage_item)
 
@@ -33,6 +34,7 @@ def build_lineage_report(job: dict[str, Any]) -> dict[str, Any]:
                 "artifact_id": artifact.get("id"),
                 "run_id": artifact.get("run_id"),
                 "job_id": artifact.get("job_id"),
+                "input_context": artifact.get("input_context", {}),
             }
         )
     return {
