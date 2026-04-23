@@ -7,6 +7,8 @@ except ModuleNotFoundError:  # pragma: no cover
 
 
 COMMANDS = [
+    ["python", "scripts/run_continuity_scenarios.py"],
+    ["python", "scripts/validate_continuity.py"],
     ["python", "scripts/validate_no_placeholder_tests.py"],
     ["python", "scripts/validate_nexus_master_truth.py"],
     ["python", "scripts/validate_nexus_10_10_gate.py"],
