@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from nexus_os.product.interactive_shell import run_shell
+
 
 def main() -> None:
-    print("[Nexus UI] Launching minimal UI shell")
-    print("[Nexus UI] (UI framework not yet implemented — placeholder interactive surface)")
+    print("[Nexus UI] Runtime-backed UI starting")
+    print("Commands: pin <section>, unpin <section>, hover <section>, mode <mode>, palette")
+    run_shell()
 
 
 if __name__ == "__main__":
