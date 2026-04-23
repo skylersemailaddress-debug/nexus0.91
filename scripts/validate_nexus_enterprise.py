@@ -23,6 +23,7 @@ SECURITY_GOVERNANCE_REPORT_PATH = EVIDENCE_DIR / "security_governance" / "securi
 OBSERVABILITY_REPORT_PATH = EVIDENCE_DIR / "observability" / "observability_validation_report.json"
 ADAPTIVE_LEARNING_REPORT_PATH = EVIDENCE_DIR / "adaptive_learning" / "adaptive_learning_validation_report.json"
 MAX_POWER_REPORT_PATH = EVIDENCE_DIR / "max_power" / "max_power_validation_report.json"
+FULL_SYSTEM_WIRING_REPORT_PATH = EVIDENCE_DIR / "full_system_wiring" / "full_system_wiring_validation_report.json"
 REPORT_PATH = EVIDENCE_DIR / "enterprise_gate" / "enterprise_gate_report.json"
 
 REQUIRED_SCORECARD_KEYS = {
@@ -181,6 +182,7 @@ def validate_evidence_tree() -> CheckResult:
         EVIDENCE_DIR / "observability",
         EVIDENCE_DIR / "adaptive_learning",
         EVIDENCE_DIR / "max_power",
+        EVIDENCE_DIR / "full_system_wiring",
     ]
     missing = [str(path) for path in required_dirs if not path.exists()]
     return CheckResult(
@@ -258,6 +260,10 @@ def validate_max_power_gate() -> CheckResult:
     return _validate_report_gate("max_power_gate", MAX_POWER_REPORT_PATH, "max_power")
 
 
+def validate_full_system_wiring_gate() -> CheckResult:
+    return _validate_report_gate("full_system_wiring_gate", FULL_SYSTEM_WIRING_REPORT_PATH, "full_system_wiring")
+
+
 def build_report(results: List[CheckResult]) -> Dict[str, object]:
     return {
         "passed": all(result.passed for result in results),
@@ -300,6 +306,7 @@ def main() -> int:
             validate_observability_gate(),
             validate_adaptive_learning_gate(),
             validate_max_power_gate(),
+            validate_full_system_wiring_gate(),
         ])
 
     report = build_report(results)
