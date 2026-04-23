@@ -1,5 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass
+import json
 from pathlib import Path
 
 @dataclass(frozen=True)
@@ -56,10 +57,17 @@ REQUIRED_TESTS = [
     "tests/test_benchmarking.py",
 ]
 
-REQUIRED_EVIDENCE = [
+REQUIRED_JSON_EVIDENCE = [
     "docs/release/evidence/ui/ui_master_truth_report.json",
     "docs/release/evidence/behavioral_gate/behavioral_ten_ten_report.json",
     "docs/release/evidence/behavioral_runtime/behavioral_runtime_report.json",
+    "docs/release/evidence/behavioral_runtime/behavioral_scenarios_report.json",
+    "docs/release/evidence/runtime/replay_consistency_report.json",
+    "docs/release/evidence/runtime/trace_consistency_report.json",
+]
+
+REQUIRED_FILE_EVIDENCE = [
+    "docs/release/evidence/runtime/audit_log.jsonl",
 ]
 
 REQUIRED_CHECKLISTS = [
@@ -75,55 +83,61 @@ def _count_checked_boxes(path: Path) -> int:
     return text.count("- [x]") + text.count("- [X]")
 
 
+def _load_json(path: Path) -> dict:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
 def run_ten_ten_gate(repo_root: str | Path) -> list[GateCheck]:
     root = Path(repo_root)
     checks: list[GateCheck] = []
 
     for rel in REQUIRED_PATHS:
         p = root / rel
-        checks.append(GateCheck(
-            name=f"path:{rel}",
-            passed=p.exists(),
-            details="required file/package path must exist",
-        ))
+        checks.append(GateCheck(f"path:{rel}", p.exists(), "required file/package path must exist"))
 
     for rel in REQUIRED_TESTS:
         p = root / rel
-        checks.append(GateCheck(
-            name=f"test:{rel}",
-            passed=p.exists(),
-            details="required proof test must exist",
-        ))
+        checks.append(GateCheck(f"test:{rel}", p.exists(), "required proof test must exist"))
 
-    for rel in REQUIRED_EVIDENCE:
+    for rel in REQUIRED_FILE_EVIDENCE:
         p = root / rel
-        checks.append(GateCheck(
-            name=f"evidence:{rel}",
-            passed=p.exists(),
-            details="required runtime evidence must exist",
-        ))
+        checks.append(GateCheck(f"evidence_file:{rel}", p.exists() and p.stat().st_size > 0 if p.exists() else False, "required evidence file must exist and be non-empty"))
+
+    for rel in REQUIRED_JSON_EVIDENCE:
+        p = root / rel
+        ok = False
+        details = "required generated evidence must exist and pass"
+        if p.exists():
+            try:
+                payload = _load_json(p)
+                ok = payload.get("source") == "generated" and payload.get("ok") is True
+            except Exception:
+                ok = False
+        checks.append(GateCheck(f"evidence_json:{rel}", ok, details))
 
     roadmap = root / "docs/roadmaps/NEXUS_10_10_MASTER_ROADMAP.md"
     checklist = root / "docs/checklists/NEXUS_10_10_MASTER_CHECKLIST.md"
-
-    checks.append(GateCheck(
-        name="roadmap_nonempty",
-        passed=roadmap.exists() and len(roadmap.read_text(encoding="utf-8").strip()) > 500,
-        details="roadmap must be substantive",
-    ))
-    checks.append(GateCheck(
-        name="checklist_nonempty",
-        passed=checklist.exists() and len(checklist.read_text(encoding="utf-8").strip()) > 200,
-        details="checklist must be substantive",
-    ))
+    checks.append(GateCheck("roadmap_nonempty", roadmap.exists() and len(roadmap.read_text(encoding="utf-8").strip()) > 500, "roadmap must be substantive"))
+    checks.append(GateCheck("checklist_nonempty", checklist.exists() and len(checklist.read_text(encoding="utf-8").strip()) > 200, "checklist must be substantive"))
 
     for rel in REQUIRED_CHECKLISTS:
         p = root / rel
-        checks.append(GateCheck(
-            name=f"checklist_progress:{rel}",
-            passed=_count_checked_boxes(p) > 0,
-            details="checklist must show real completed work",
-        ))
+        checks.append(GateCheck(f"checklist_progress:{rel}", _count_checked_boxes(p) > 0, "checklist must show real completed work"))
+
+    scenario_report = root / "docs/release/evidence/behavioral_runtime/behavioral_scenarios_report.json"
+    if scenario_report.exists():
+        try:
+            data = _load_json(scenario_report)
+            scenario_checks = data.get("checks", {})
+            for name in ["continuity", "memory", "execution"]:
+                ok = bool(scenario_checks.get(name, {}).get("ok", False))
+                checks.append(GateCheck(f"scenario:{name}", ok, "behavioral scenario must pass"))
+        except Exception:
+            for name in ["continuity", "memory", "execution"]:
+                checks.append(GateCheck(f"scenario:{name}", False, "behavioral scenario report unreadable"))
+    else:
+        for name in ["continuity", "memory", "execution"]:
+            checks.append(GateCheck(f"scenario:{name}", False, "behavioral scenario report missing"))
 
     return checks
 
