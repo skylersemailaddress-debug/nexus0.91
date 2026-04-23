@@ -14,6 +14,7 @@ MATURITY_PATH = RELEASE_DIR / "NEXUS_MATURITY_LABELS.md"
 SCORECARD_PATH = RELEASE_DIR / "NEXUS_SCORECARD.json"
 PROOF_MATRIX_PATH = RELEASE_DIR / "NEXUS_PROOF_MATRIX.md"
 CONTINUITY_REPORT_PATH = EVIDENCE_DIR / "continuity" / "continuity_validation_report.json"
+MEMORY_REPORT_PATH = EVIDENCE_DIR / "memory" / "memory_validation_report.json"
 REPORT_PATH = EVIDENCE_DIR / "enterprise_gate" / "enterprise_gate_report.json"
 
 REQUIRED_SCORECARD_KEYS = {
@@ -97,7 +98,7 @@ def ensure_exists(path: Path, label: str) -> CheckResult:
     return CheckResult(
         name=f"exists:{label}",
         passed=exists,
-        details=[] if exists else [f"Missing required file: {path}"]
+        details=[] if exists else [f"Missing required file: {path}"],
     )
 
 
@@ -163,6 +164,7 @@ def validate_evidence_tree() -> CheckResult:
         EVIDENCE_DIR / "proof_matrix",
         EVIDENCE_DIR / "enterprise_gate",
         EVIDENCE_DIR / "continuity",
+        EVIDENCE_DIR / "memory",
     ]
     missing = [str(path) for path in required_dirs if not path.exists()]
     return CheckResult(
@@ -172,32 +174,40 @@ def validate_evidence_tree() -> CheckResult:
     )
 
 
-def validate_continuity_gate() -> CheckResult:
-    if not CONTINUITY_REPORT_PATH.exists():
+def _validate_report_gate(name: str, report_path: Path, label: str) -> CheckResult:
+    if not report_path.exists():
         return CheckResult(
-            name="continuity_gate",
+            name=name,
             passed=False,
-            details=[f"Missing continuity validation report: {CONTINUITY_REPORT_PATH}"],
+            details=[f"Missing {label} validation report: {report_path}"],
         )
 
     try:
-        report = read_json(CONTINUITY_REPORT_PATH)
+        report = read_json(report_path)
     except Exception as exc:
         return CheckResult(
-            name="continuity_gate",
+            name=name,
             passed=False,
-            details=[f"Invalid continuity validation report JSON: {exc}"],
+            details=[f"Invalid {label} validation report JSON: {exc}"],
         )
 
     if report.get("passed") is True:
-        return CheckResult(name="continuity_gate", passed=True, details=[])
+        return CheckResult(name=name, passed=True, details=[])
 
-    details = ["Continuity validation did not pass"]
+    details = [f"{label.capitalize()} validation did not pass"]
     for check in report.get("checks", []):
         if not check.get("passed"):
             for detail in check.get("details", []):
                 details.append(str(detail))
-    return CheckResult(name="continuity_gate", passed=False, details=details)
+    return CheckResult(name=name, passed=False, details=details)
+
+
+def validate_continuity_gate() -> CheckResult:
+    return _validate_report_gate("continuity_gate", CONTINUITY_REPORT_PATH, "continuity")
+
+
+def validate_memory_gate() -> CheckResult:
+    return _validate_report_gate("memory_gate", MEMORY_REPORT_PATH, "memory")
 
 
 def build_report(results: List[CheckResult]) -> Dict[str, object]:
@@ -233,6 +243,7 @@ def main() -> int:
             validate_proof_matrix(),
             validate_evidence_tree(),
             validate_continuity_gate(),
+            validate_memory_gate(),
         ])
 
     report = build_report(results)
