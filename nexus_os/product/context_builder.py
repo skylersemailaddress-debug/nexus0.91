@@ -30,6 +30,27 @@ def build_context(*, query: str, memories: list[dict[str, Any]]) -> dict[str, An
 
     scored: list[tuple[float, dict[str, Any], str]] = []
     for memory in active_memories:
+        # GATE 1: Filter out contradicted/stale/inactive memories before scoring
+        truth_state = memory.get("truth_state", "").lower()
+        is_contradicted = truth_state == "contradicted"
+        is_stale = memory.get("stale", False)
+        is_inactive = memory.get("inactive", False) or truth_state == "inactive"
+
+        if is_contradicted or is_stale or is_inactive:
+            # Never rank contradicted/stale/inactive memories
+            suppression_reason = (
+                "contradicted" if is_contradicted 
+                else "stale" if is_stale 
+                else "inactive"
+            )
+            filtered_memories.append(
+                {
+                    "id": memory.get("id"),
+                    "reason": f"suppressed_as_{suppression_reason}",
+                }
+            )
+            continue
+
         content = str(memory.get("content", memory.get("text", "")))
         content_terms = _normalize_terms(content)
         overlap_terms = sorted(query_terms.intersection(content_terms))

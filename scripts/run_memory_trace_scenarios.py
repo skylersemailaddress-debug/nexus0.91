@@ -31,16 +31,18 @@ def main() -> int:
 
     selected = context.get("selected_memories", [])
     suppressed = context.get("suppressed_memories", [])
+    filtered = context.get("filtered_memories", [])
     trace = context.get("influence_trace", [])
 
     selected_ids = [m.get("id") for m in selected]
     suppressed_ids = [m.get("id") for m in suppressed]
+    filtered_ids = [m.get("id") for m in filtered]
     trace_ids = [item.get("memory_id") for item in trace]
 
     passed = (
         "mem-active" in selected_ids
         and "mem-duplicate" in suppressed_ids
-        and "mem-contradicted" in suppressed_ids
+        and "mem-contradicted" in filtered_ids  # contradicted memories go to filtered_memories after GATE1
         and trace_ids == ["mem-active"]
     )
 
@@ -49,6 +51,7 @@ def main() -> int:
         "query": query,
         "selected_ids": selected_ids,
         "suppressed_ids": suppressed_ids,
+        "filtered_ids": filtered_ids,
         "trace_ids": trace_ids,
         "context": context,
         "passed": passed,
