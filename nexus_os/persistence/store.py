@@ -16,6 +16,11 @@ DEFAULT_STATE: dict[str, Any] = {
         "hover_target": "mission",
         "saved_layout": "default",
     },
+    "learning_state": {
+        "pane_usage": {},
+        "action_usage": {},
+        "mode_usage": {},
+    },
 }
 
 
@@ -34,6 +39,8 @@ def load_state() -> dict[str, Any]:
     state = json.loads(path.read_text(encoding="utf-8"))
     if "ui_state" not in state:
         state["ui_state"] = json.loads(json.dumps(DEFAULT_STATE["ui_state"]))
+    if "learning_state" not in state:
+        state["learning_state"] = json.loads(json.dumps(DEFAULT_STATE["learning_state"]))
     return state
 
 
