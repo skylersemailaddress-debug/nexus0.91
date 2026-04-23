@@ -6,6 +6,7 @@ except ModuleNotFoundError:
     from scripts._release_common import run
 
 COMMANDS = [
+    ["python", "scripts/emit_bootstrap_evidence.py"],
     ["python", "scripts/validate_no_placeholder_tests.py"],
     ["python", "scripts/validate_nexus_master_truth.py"],
     ["python", "scripts/validate_nexus_10_10_gate.py"],
