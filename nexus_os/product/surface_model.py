@@ -50,9 +50,12 @@ class ApprovalPrompt:
 @dataclass
 class UIControls:
     mode: str = "focus"
+    density: str = "comfortable"
     pinned_sections: List[str] = field(default_factory=list)
     hover_target: str = "mission"
     palette_commands: List[str] = field(default_factory=list)
+    quick_actions: List[str] = field(default_factory=list)
+    saved_layout: str = "default"
 
 
 @dataclass
