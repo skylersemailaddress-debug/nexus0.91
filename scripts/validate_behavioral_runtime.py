@@ -27,27 +27,37 @@ def main() -> int:
         "errors": [],
     }
 
-    checks = {
-        "messages_persist": len(state.get("messages", [])) >= 1,
-        "objective_available": bool((state.get("messages") or [{}])[-1].get("text", "").strip()) if state.get("messages") else False,
-        "memory_store_available": isinstance(state.get("memories", []), list),
-        "run_store_available": isinstance(state.get("runs", {}), dict),
-        "operator_surface_ready": True,
+    messages = list(state.get("messages", []))
+    memories = list(state.get("memories", []))
+    runs = dict(state.get("runs", {}))
+    runtime_checks = {
+        "messages_persist": len(messages) >= 1,
+        "objective_available": bool(messages[-1].get("text", "").strip()) if messages else False,
+        "memory_store_available": isinstance(memories, list) and len(memories) >= 1,
+        "run_store_available": isinstance(runs, dict) and len(runs) >= 1,
+        "operator_surface_ready": bool(messages) and isinstance(memories, list) and isinstance(runs, dict),
     }
 
-    result["checks"]["runtime_state"] = checks
-    for name, ok in checks.items():
+    result["checks"]["runtime_state"] = runtime_checks
+    for name, ok in runtime_checks.items():
         if not ok:
             result["ok"] = False
             result["errors"].append(f"{name} failed")
 
     evidence_checks = {}
     for name, path in EVIDENCE_FILES.items():
-        ok = path.exists()
+        ok = False
+        payload: dict[str, object] | None = None
+        if path.exists():
+            try:
+                payload = _load_json(path)
+                ok = payload.get("source") == "generated" and payload.get("ok") is True
+            except Exception:
+                ok = False
         evidence_checks[name] = {"ok": ok, "path": str(path)}
         if not ok:
             result["ok"] = False
-            result["errors"].append(f"missing evidence: {name}")
+            result["errors"].append(f"invalid generated evidence: {name}")
     result["checks"]["evidence_files"] = evidence_checks
 
     scenario_check = {"ok": False, "path": str(SCENARIO_REPORT), "required": ["continuity", "memory", "execution"]}
