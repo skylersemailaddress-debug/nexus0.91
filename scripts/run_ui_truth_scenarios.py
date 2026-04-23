@@ -4,11 +4,21 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+from nexus_os.product.continuity import build_resume_snapshot
+from nexus_os.product.execution import create_run
+from nexus_os.product.ui_truth import (
+    mission_surface_from_runtime,
+    approval_surface_from_runtime,
+    progress_surface_from_runtime,
+    memory_surface_from_runtime,
+    proof_surface_from_runtime,
+)
+
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "docs" / "release" / "evidence" / "ui"
 
 
-def emit(name: str, surface: dict, runtime_source: dict, reasoning: list[str]) -> None:
+def _write(name: str, surface: dict, runtime_source: dict, reasoning: list[str]) -> None:
     payload = {
         "scenario": name,
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -23,42 +33,50 @@ def emit(name: str, surface: dict, runtime_source: dict, reasoning: list[str]) -
 def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
 
-    emit(
+    state = {"objective": "Execute objective", "next_step": "Do step"}
+    snapshot = build_resume_snapshot(state)
+
+    _write(
         "mission_surface_matches_runtime",
-        {"objective": "Execute objective"},
-        {"objective": "Execute objective"},
-        ["UI objective reflects runtime objective"],
+        mission_surface_from_runtime(snapshot),
+        snapshot,
+        ["mission bound to continuity snapshot"],
     )
 
-    emit(
+    run = create_run({}, "run-ui", "Execute objective", "step")
+    run_dict = {"status": run.status, "jobs": [j.__dict__ for j in run.jobs], "approvals": []}
+
+    _write(
         "approval_surface_matches_runtime",
-        {"approvals": [{"id": "approval-1", "status": "pending"}]},
-        {"approvals": [{"id": "approval-1", "status": "pending"}]},
-        ["UI approvals reflect runtime approval state"],
+        approval_surface_from_runtime(run_dict),
+        run_dict,
+        ["approval surface matches runtime approvals"],
     )
 
-    emit(
+    _write(
         "progress_surface_matches_run_state",
-        {"run_status": "active"},
-        {"run_status": "active"},
-        ["UI progress reflects run state"],
+        progress_surface_from_runtime(run_dict),
+        run_dict,
+        ["progress surface matches run state"],
     )
 
-    emit(
+    snapshot_with_memory = build_resume_snapshot({"objective": "Execute", "memory": [{"text": "priority_signal"}]})
+
+    _write(
         "memory_surface_matches_influence_trace",
-        {"memory": ["priority_signal"]},
-        {"memory": ["priority_signal"]},
-        ["UI memory reflects influence trace"],
+        memory_surface_from_runtime(snapshot_with_memory),
+        snapshot_with_memory,
+        ["memory surface reflects memory context"],
     )
 
-    emit(
+    _write(
         "proof_surface_matches_evidence",
-        {"evidence": ["continuity_pass"]},
-        {"evidence": ["continuity_pass"]},
-        ["UI proof reflects evidence state"],
+        proof_surface_from_runtime(["continuity_pass", "memory_pass"]),
+        {"evidence": ["continuity_pass", "memory_pass"]},
+        ["proof surface reflects evidence"],
     )
 
-    print("[ui] emitted 5 scenarios")
+    print("[ui] emitted 5 scenarios (runtime-backed)")
     return 0
 
 
