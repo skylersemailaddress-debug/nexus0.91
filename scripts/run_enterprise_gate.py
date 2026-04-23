@@ -7,7 +7,7 @@ except ModuleNotFoundError:  # pragma: no cover
 
 
 COMMANDS = [
-    ["python", "scripts/validate_no_placeholder_tests.py"],
+    ["python", "-m", "scripts.validate_no_placeholder_tests"],
     ["python", "scripts/validate_nexus_master_truth.py"],
     ["python", "scripts/validate_nexus_10_10_gate.py"],
     [
@@ -32,7 +32,7 @@ COMMANDS = [
         "tests/test_benchmarking.py",
     ],
     ["python", "scripts/security_baseline.py"],
-    ["python", "scripts/generate_release_manifest.py"],
+    ["python", "-m", "scripts.generate_release_manifest"],
 ]
 
 
