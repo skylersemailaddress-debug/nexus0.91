@@ -7,16 +7,16 @@ ROOT = Path(__file__).resolve().parents[1]
 
 EVIDENCE = {
     ROOT / "docs" / "release" / "evidence" / "ui" / "ui_master_truth_report.json": {
-        "ok": True,
-        "source": "bootstrap",
-        "checks": {"ui_truth_locked": True},
-        "errors": [],
+        "ok": False,
+        "source": "bootstrap_provisional",
+        "checks": {"ui_truth_locked": False},
+        "errors": ["bootstrap evidence must be replaced by real generated proof"],
     },
     ROOT / "docs" / "release" / "evidence" / "behavioral_gate" / "behavioral_ten_ten_report.json": {
-        "ok": True,
-        "source": "bootstrap",
-        "checks": {"behavioral_gate_present": True},
-        "errors": [],
+        "ok": False,
+        "source": "bootstrap_provisional",
+        "checks": {"behavioral_gate_present": False},
+        "errors": ["bootstrap evidence must be replaced by real generated proof"],
     },
 }
 
