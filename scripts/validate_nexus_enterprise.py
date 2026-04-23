@@ -24,6 +24,7 @@ OBSERVABILITY_REPORT_PATH = EVIDENCE_DIR / "observability" / "observability_vali
 ADAPTIVE_LEARNING_REPORT_PATH = EVIDENCE_DIR / "adaptive_learning" / "adaptive_learning_validation_report.json"
 MAX_POWER_REPORT_PATH = EVIDENCE_DIR / "max_power" / "max_power_validation_report.json"
 FULL_SYSTEM_WIRING_REPORT_PATH = EVIDENCE_DIR / "full_system_wiring" / "full_system_wiring_validation_report.json"
+FINAL_CONFIGURATION_REPORT_PATH = EVIDENCE_DIR / "final_configuration" / "final_configuration_validation_report.json"
 REPORT_PATH = EVIDENCE_DIR / "enterprise_gate" / "enterprise_gate_report.json"
 
 REQUIRED_SCORECARD_KEYS = {
@@ -86,7 +87,6 @@ REQUIRED_PROOF_SCENARIOS = {
     "Release": "clean_install_and_boot",
 }
 
-
 @dataclass
 class CheckResult:
     name: str
@@ -104,31 +104,19 @@ def read_json(path: Path) -> Dict[str, object]:
 
 def ensure_exists(path: Path, label: str) -> CheckResult:
     exists = path.exists()
-    return CheckResult(
-        name=f"exists:{label}",
-        passed=exists,
-        details=[] if exists else [f"Missing required file: {path}"],
-    )
+    return CheckResult(name=f"exists:{label}", passed=exists, details=[] if exists else [f"Missing required file: {path}"])
 
 
 def validate_constitution() -> CheckResult:
     text = read_text(CONSTITUTION_PATH)
     missing = [section for section in REQUIRED_CONSTITUTION_SECTIONS if section not in text]
-    return CheckResult(
-        name="constitution",
-        passed=not missing,
-        details=[f"Missing constitution section: {section}" for section in missing],
-    )
+    return CheckResult(name="constitution", passed=not missing, details=[f"Missing constitution section: {section}" for section in missing])
 
 
 def validate_maturity_labels() -> CheckResult:
     text = read_text(MATURITY_PATH)
     missing = [label for label in REQUIRED_MATURITY_LABELS if label not in text]
-    return CheckResult(
-        name="maturity_labels",
-        passed=not missing,
-        details=[f"Missing maturity label: {label}" for label in missing],
-    )
+    return CheckResult(name="maturity_labels", passed=not missing, details=[f"Missing maturity label: {label}" for label in missing])
 
 
 def validate_scorecard() -> CheckResult:
@@ -183,35 +171,21 @@ def validate_evidence_tree() -> CheckResult:
         EVIDENCE_DIR / "adaptive_learning",
         EVIDENCE_DIR / "max_power",
         EVIDENCE_DIR / "full_system_wiring",
+        EVIDENCE_DIR / "final_configuration",
     ]
     missing = [str(path) for path in required_dirs if not path.exists()]
-    return CheckResult(
-        name="evidence_tree",
-        passed=not missing,
-        details=[f"Missing evidence directory: {path}" for path in missing],
-    )
+    return CheckResult(name="evidence_tree", passed=not missing, details=[f"Missing evidence directory: {path}" for path in missing])
 
 
 def _validate_report_gate(name: str, report_path: Path, label: str) -> CheckResult:
     if not report_path.exists():
-        return CheckResult(
-            name=name,
-            passed=False,
-            details=[f"Missing {label} validation report: {report_path}"],
-        )
-
+        return CheckResult(name=name, passed=False, details=[f"Missing {label} validation report: {report_path}"])
     try:
         report = read_json(report_path)
     except Exception as exc:
-        return CheckResult(
-            name=name,
-            passed=False,
-            details=[f"Invalid {label} validation report JSON: {exc}"],
-        )
-
+        return CheckResult(name=name, passed=False, details=[f"Invalid {label} validation report JSON: {exc}"])
     if report.get("passed") is True:
         return CheckResult(name=name, passed=True, details=[])
-
     details = [f"{label.capitalize()} validation did not pass"]
     for check in report.get("checks", []):
         if not check.get("passed"):
@@ -264,31 +238,23 @@ def validate_full_system_wiring_gate() -> CheckResult:
     return _validate_report_gate("full_system_wiring_gate", FULL_SYSTEM_WIRING_REPORT_PATH, "full_system_wiring")
 
 
+def validate_final_configuration_gate() -> CheckResult:
+    return _validate_report_gate("final_configuration_gate", FINAL_CONFIGURATION_REPORT_PATH, "final_configuration")
+
+
 def build_report(results: List[CheckResult]) -> Dict[str, object]:
-    return {
-        "passed": all(result.passed for result in results),
-        "checks": [
-            {
-                "name": result.name,
-                "passed": result.passed,
-                "details": result.details,
-            }
-            for result in results
-        ],
-    }
+    return {"passed": all(result.passed for result in results), "checks": [{"name": result.name, "passed": result.passed, "details": result.details} for result in results]}
 
 
 def main() -> int:
     EVIDENCE_DIR.mkdir(parents=True, exist_ok=True)
     (EVIDENCE_DIR / "enterprise_gate").mkdir(parents=True, exist_ok=True)
-
     results = [
         ensure_exists(CONSTITUTION_PATH, "constitution"),
         ensure_exists(MATURITY_PATH, "maturity_labels"),
         ensure_exists(SCORECARD_PATH, "scorecard"),
         ensure_exists(PROOF_MATRIX_PATH, "proof_matrix"),
     ]
-
     if all(result.passed for result in results):
         results.extend([
             validate_constitution(),
@@ -307,12 +273,11 @@ def main() -> int:
             validate_adaptive_learning_gate(),
             validate_max_power_gate(),
             validate_full_system_wiring_gate(),
+            validate_final_configuration_gate(),
         ])
-
     report = build_report(results)
     REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
     REPORT_PATH.write_text(json.dumps(report, indent=2), encoding="utf-8")
-
     print(json.dumps(report, indent=2))
     return 0 if report["passed"] else 1
 
