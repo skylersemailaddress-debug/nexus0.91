@@ -15,6 +15,7 @@ COMMANDS = [
     ["python", "scripts/generate_behavioral_gate_evidence.py"],
     ["python", "scripts/security_baseline.py"],
     ["python", "scripts/validate_replay_consistency.py"],
+    ["python", "scripts/validate_trace_consistency.py"],
     [
         "python",
         "-m",
