@@ -56,6 +56,25 @@ REQUIRED_TESTS = [
     "tests/test_benchmarking.py",
 ]
 
+REQUIRED_EVIDENCE = [
+    "docs/release/evidence/ui/ui_master_truth_report.json",
+    "docs/release/evidence/behavioral_gate/behavioral_ten_ten_report.json",
+    "docs/release/evidence/behavioral_runtime/behavioral_runtime_report.json",
+]
+
+REQUIRED_CHECKLISTS = [
+    "docs/checklists/NEXUS_10_10_MASTER_CHECKLIST.md",
+    "docs/checklists/NEXUS_10_10_EXECUTION_CHECKLIST.md",
+]
+
+
+def _count_checked_boxes(path: Path) -> int:
+    if not path.exists():
+        return 0
+    text = path.read_text(encoding="utf-8", errors="ignore")
+    return text.count("- [x]") + text.count("- [X]")
+
+
 def run_ten_ten_gate(repo_root: str | Path) -> list[GateCheck]:
     root = Path(repo_root)
     checks: list[GateCheck] = []
@@ -76,6 +95,14 @@ def run_ten_ten_gate(repo_root: str | Path) -> list[GateCheck]:
             details="required proof test must exist",
         ))
 
+    for rel in REQUIRED_EVIDENCE:
+        p = root / rel
+        checks.append(GateCheck(
+            name=f"evidence:{rel}",
+            passed=p.exists(),
+            details="required runtime evidence must exist",
+        ))
+
     roadmap = root / "docs/roadmaps/NEXUS_10_10_MASTER_ROADMAP.md"
     checklist = root / "docs/checklists/NEXUS_10_10_MASTER_CHECKLIST.md"
 
@@ -90,7 +117,16 @@ def run_ten_ten_gate(repo_root: str | Path) -> list[GateCheck]:
         details="checklist must be substantive",
     ))
 
+    for rel in REQUIRED_CHECKLISTS:
+        p = root / rel
+        checks.append(GateCheck(
+            name=f"checklist_progress:{rel}",
+            passed=_count_checked_boxes(p) > 0,
+            details="checklist must show real completed work",
+        ))
+
     return checks
+
 
 def all_ten_ten_checks_pass(repo_root: str | Path) -> bool:
     return all(c.passed for c in run_ten_ten_gate(repo_root))
