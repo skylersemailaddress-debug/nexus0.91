@@ -9,6 +9,13 @@ except ModuleNotFoundError:  # pragma: no cover
 COMMANDS = [
     ["python", "scripts/run_continuity_scenarios.py"],
     ["python", "scripts/validate_continuity.py"],
+    ["python", "scripts/run_memory_context_scenarios.py"],
+    ["python", "scripts/validate_memory_context_integration.py"],
+    ["python", "scripts/run_memory_trace_scenarios.py"],
+    ["python", "scripts/validate_memory_trace.py"],
+    ["python", "scripts/run_memory_behavior_scenarios.py"],
+    ["python", "scripts/validate_memory_behavior.py"],
+    ["python", "scripts/validate_memory.py"],
     ["python", "scripts/validate_no_placeholder_tests.py"],
     ["python", "scripts/validate_nexus_master_truth.py"],
     ["python", "scripts/validate_nexus_10_10_gate.py"],
