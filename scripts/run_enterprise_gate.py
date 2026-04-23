@@ -6,13 +6,13 @@ except ModuleNotFoundError:
     from scripts._release_common import run
 
 COMMANDS = [
-    ["python", "scripts/emit_bootstrap_evidence.py"],
     ["python", "scripts/generate_ui_truth_evidence.py"],
     ["python", "scripts/validate_no_placeholder_tests.py"],
     ["python", "scripts/validate_nexus_master_truth.py"],
     ["python", "scripts/validate_nexus_10_10_gate.py"],
     ["python", "scripts/run_behavioral_scenarios.py"],
     ["python", "scripts/validate_behavioral_runtime.py"],
+    ["python", "scripts/generate_behavioral_gate_evidence.py"],
     ["python", "scripts/security_baseline.py"],
     [
         "python",
