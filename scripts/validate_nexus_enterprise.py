@@ -15,6 +15,7 @@ SCORECARD_PATH = RELEASE_DIR / "NEXUS_SCORECARD.json"
 PROOF_MATRIX_PATH = RELEASE_DIR / "NEXUS_PROOF_MATRIX.md"
 CONTINUITY_REPORT_PATH = EVIDENCE_DIR / "continuity" / "continuity_validation_report.json"
 MEMORY_REPORT_PATH = EVIDENCE_DIR / "memory" / "memory_validation_report.json"
+EXECUTION_REPORT_PATH = EVIDENCE_DIR / "execution" / "execution_validation_report.json"
 REPORT_PATH = EVIDENCE_DIR / "enterprise_gate" / "enterprise_gate_report.json"
 
 REQUIRED_SCORECARD_KEYS = {
@@ -165,6 +166,7 @@ def validate_evidence_tree() -> CheckResult:
         EVIDENCE_DIR / "enterprise_gate",
         EVIDENCE_DIR / "continuity",
         EVIDENCE_DIR / "memory",
+        EVIDENCE_DIR / "execution",
     ]
     missing = [str(path) for path in required_dirs if not path.exists()]
     return CheckResult(
@@ -210,6 +212,10 @@ def validate_memory_gate() -> CheckResult:
     return _validate_report_gate("memory_gate", MEMORY_REPORT_PATH, "memory")
 
 
+def validate_execution_gate() -> CheckResult:
+    return _validate_report_gate("execution_gate", EXECUTION_REPORT_PATH, "execution")
+
+
 def build_report(results: List[CheckResult]) -> Dict[str, object]:
     return {
         "passed": all(result.passed for result in results),
@@ -244,6 +250,7 @@ def main() -> int:
             validate_evidence_tree(),
             validate_continuity_gate(),
             validate_memory_gate(),
+            validate_execution_gate(),
         ])
 
     report = build_report(results)
