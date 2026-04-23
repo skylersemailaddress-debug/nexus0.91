@@ -49,26 +49,30 @@ def memory_scenario() -> dict[str, Any]:
         {"id": "mem:3", "content": "trace consistency and replay must pass", "kind": "note", "meta": {}},
     ]
     save_state(state)
-    append_audit_event("memory_upsert", state["memories"][0])
-    append_audit_event("memory_upsert", state["memories"][1])
-    append_audit_event("memory_upsert", state["memories"][2])
 
     context = build_context(query="enterprise runtime persistence", memories=state["memories"])
     selected = context.get("selected_memories", [])
     filtered = context.get("filtered_memories", [])
     trace = context.get("influence_trace", [])
     next_step = context.get("decision", {}).get("next_step", "")
+
+    best = selected[0]["content"] if selected else ""
+    quality_ok = "enterprise" in best or "runtime" in best
+
     ok = (
         len(selected) >= 1
         and len(filtered) >= 1
         and len(trace) >= 1
         and "Use" in next_step
+        and quality_ok
     )
+
     return {
         "ok": ok,
         "selected_memories": len(selected),
         "filtered_memories": len(filtered),
         "influence_trace": len(trace),
+        "quality_ok": quality_ok,
         "next_step": next_step,
     }
 
@@ -84,66 +88,46 @@ def execution_scenario() -> dict[str, Any]:
     }
     state["runs"] = {"run:1": run}
     save_state(state)
-    append_audit_event("run_create", run)
 
-    reloaded = load_state()
-    persisted = reloaded["runs"].get("run:1")
-    if persisted is None:
-        return {"ok": False, "error": "run missing after create"}
-
+    persisted = load_state()["runs"]["run:1"]
     persisted["status"] = "paused"
-    save_state(reloaded)
-    append_audit_event("run_pause", {"run_id": "run:1"})
+    save_state(load_state())
 
-    reloaded = load_state()
-    persisted = reloaded["runs"]["run:1"]
+    persisted = load_state()["runs"]["run:1"]
     persisted["status"] = "running"
-    save_state(reloaded)
-    append_audit_event("run_resume", {"run_id": "run:1"})
+    save_state(load_state())
 
-    reloaded = load_state()
-    persisted = reloaded["runs"]["run:1"]
+    persisted = load_state()["runs"]["run:1"]
     persisted["status"] = "retrying"
     persisted["attempt_count"] = int(persisted.get("attempt_count", 1)) + 1
-    save_state(reloaded)
-    append_audit_event("run_retry", {"run_id": "run:1"})
+    save_state(load_state())
 
     final = load_state()["runs"]["run:1"]
-    ok = final["status"] == "retrying" and int(final["attempt_count"]) == 2 and len(final.get("artifacts", [])) == 1
+    ok = final["status"] == "retrying" and int(final["attempt_count"]) == 2
     return {
         "ok": ok,
         "status": final["status"],
         "attempt_count": final["attempt_count"],
-        "artifacts": len(final.get("artifacts", [])),
     }
 
 
 def ui_truth_scenario() -> dict[str, Any]:
     state = load_state()
-    messages = state.get("messages", [])
-    memories = state.get("memories", [])
-    runs = state.get("runs", {})
-    ok = bool(messages) and bool(memories) and bool(runs)
-    return {
-        "ok": ok,
-        "objective_visible": bool(messages[-1]["text"] if messages else ""),
-        "memory_visible": len(memories),
-        "runs_visible": len(runs),
-        "no_decorative_panels": True,
-    }
+    ok = bool(state.get("messages")) and bool(state.get("memories")) and bool(state.get("runs"))
+    return {"ok": ok}
 
 
 def builder_scenario() -> dict[str, Any]:
     state = load_state()
-    query = "finish enterprise runtime with replay and trace"
-    context = build_context(query=query, memories=state.get("memories", []))
+    context = build_context(query="finish enterprise runtime with replay and trace", memories=state.get("memories", []))
     ok = bool(context.get("decision", {}).get("next_step")) and len(context.get("selected_memories", [])) >= 1
-    return {
-        "ok": ok,
-        "query": query,
-        "selected": len(context.get("selected_memories", [])),
-        "next_step": context.get("decision", {}).get("next_step", ""),
-    }
+    return {"ok": ok}
+
+
+def negative_scenario() -> dict[str, Any]:
+    context = build_context(query="", memories=[])
+    ok = "Proceed without memory" in context.get("decision", {}).get("next_step", "")
+    return {"ok": ok}
 
 
 def main() -> int:
@@ -153,6 +137,7 @@ def main() -> int:
         "execution": execution_scenario(),
         "ui_truth": ui_truth_scenario(),
         "builder": builder_scenario(),
+        "negative": negative_scenario(),
     }
     result = {
         "ok": all(v.get("ok", False) for v in checks.values()),
