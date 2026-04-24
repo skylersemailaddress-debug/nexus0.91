@@ -4,11 +4,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
+# Encoded to prevent this validator from matching itself.
 BANNED_STRINGS = [
-    "Status: NO-GO",
-    "GitHub Actions: RED",
-    "NOT MERGE READY",
-    "PR #48",
+    "Status:" + " NO-GO",
+    "GitHub Actions:" + " RED",
+    "NOT MERGE" + " READY",
+    "PR #" + "48",
 ]
 
 SEARCH_PATHS = [
@@ -19,9 +20,12 @@ SEARCH_PATHS = [
 
 def scan() -> list[str]:
     violations: list[str] = []
+    self_path = Path(__file__).resolve()
     for base in SEARCH_PATHS:
         for path in base.rglob("*"):
             if not path.is_file():
+                continue
+            if path.resolve() == self_path:
                 continue
             if path.suffix not in {".md", ".py"}:
                 continue
@@ -31,7 +35,7 @@ def scan() -> list[str]:
                 continue
             for banned in BANNED_STRINGS:
                 if banned in text:
-                    violations.append(f"{path}: contains '{banned}'")
+                    violations.append(f"{path}: contains stale truth claim")
     return violations
 
 
