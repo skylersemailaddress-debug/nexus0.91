@@ -36,6 +36,7 @@ COMMANDS = [
     ["python", "scripts/run_final_configuration_scenarios.py"],
     ["python", "scripts/validate_final_configuration.py"],
     ["python", "scripts/validate_no_placeholder_tests.py"],
+    ["python", "scripts/validate_repo_truth_consistency.py"],
     ["python", "scripts/validate_nexus_master_truth.py"],
     ["python", "scripts/validate_nexus_10_10_gate.py"],
     ["python", "scripts/validate_enterprise_gate_coverage.py"],
