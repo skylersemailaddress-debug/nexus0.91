@@ -83,8 +83,8 @@ def build_surface(product_name: str, workflows: list[str]) -> Surface:
     )
 
 
-def create_surface(product_name: str, workflows: list[str]) -> Surface:
-    return build_surface(product_name, workflows)
+def create_surface(product_name: str, workflows: list[str] | None = None) -> Surface:
+    return build_surface(product_name, workflows or [])
 
 
 __all__ = ["Surface", "Panel", "build_surface", "create_surface"]
