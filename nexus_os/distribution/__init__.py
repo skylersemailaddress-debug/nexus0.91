@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 
 @dataclass(frozen=True)
 class DistributionPlan:
+    name: str
     channels: list[str]
     segments: list[str]
     campaigns: list[str]
@@ -41,7 +42,7 @@ def build_distribution(product_name: str) -> DistributionPlan:
         "prioritize_updates",
     ]
 
-    return DistributionPlan(channels, segments, campaigns, launch_sequence, feedback_loop)
+    return DistributionPlan(product_name, channels, segments, campaigns, launch_sequence, feedback_loop)
 
 
 def create_plan(product_name: str) -> DistributionPlan:
