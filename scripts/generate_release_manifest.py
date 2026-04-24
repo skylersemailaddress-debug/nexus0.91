@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import json
-from pathlib import Path
-
-from scripts._release_common import REPO_ROOT, utc_now_iso, write_json
+try:
+    from _release_common import REPO_ROOT, utc_now_iso, write_json
+except ModuleNotFoundError:  # pragma: no cover
+    from scripts._release_common import REPO_ROOT, utc_now_iso, write_json
 
 
 def main() -> None:
