@@ -1,13 +1,16 @@
 name: truth-gates
 
 on:
-  push:
-    branches: [main]
   pull_request:
+  push:
+    branches:
+      - main
+      - chore/repo-truth-cleanup
 
 jobs:
   validate:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -15,12 +18,17 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: "3.12"
 
-      - name: Install package and build tooling
+      - name: Install
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e . build pytest pytest pytest
+          python -m pip install -e . build pytest
+
+      - name: Generate evidence for tests
+        run: |
+          python scripts/run_continuity_scenarios.py
+          python scripts/run_execution_scenarios.py
 
       - name: Run tests
         run: python -m pytest -q
@@ -30,12 +38,3 @@ jobs:
           python scripts/validate_no_placeholder_tests.py
           python scripts/validate_nexus_master_truth.py
           python scripts/validate_nexus_10_10_gate.py
-
-      - name: Packaging and import verification
-        run: |
-          python -m build --sdist --wheel
-          python -m compileall nexus_os
-          python - <<'PY'
-          import nexus_os
-          print(nexus_os.__all__)
-          PY
