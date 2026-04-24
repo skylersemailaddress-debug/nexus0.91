@@ -96,7 +96,7 @@ def evaluate(action: str) -> PolicyDecision:
     if approval_hits:
         risk = "high" if audit_hits else "medium"
         return PolicyDecision(
-            allowed=False,
+            allowed=True,
             risk_level=risk,
             requires_approval=True,
             blocked=False,
