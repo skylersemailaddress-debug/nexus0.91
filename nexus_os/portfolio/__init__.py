@@ -91,7 +91,11 @@ def score_item(item: str, focus: str = "balanced") -> PortfolioItem:
         value += 0.08 if "revenue" in text or "customer" in text else 0.0
     if focus == "risk_reduction":
         value += 0.08 if risk != "low" or "compliance" in text else 0.0
-    score = _clamp(value + urgency_value + strategic_fit * 0.18 - effort_penalty - risk_penalty)
+    critical_customer_signal = "churn" in text and ("urgent" in text or "customer" in text or "retention" in text)
+    critical_customer_bonus = 0.08 if critical_customer_signal else 0.0
+    if critical_customer_signal:
+        reasons.append("critical_customer_signal:churn")
+    score = _clamp(value + urgency_value + critical_customer_bonus + strategic_fit * 0.18 - effort_penalty - risk_penalty)
     if score >= 0.75:
         priority = "P0"
         next_step = "build_blueprint_now"
