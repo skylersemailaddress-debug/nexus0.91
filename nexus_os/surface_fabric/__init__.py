@@ -83,4 +83,8 @@ def build_surface(product_name: str, workflows: list[str]) -> Surface:
     )
 
 
-__all__ = ["Surface", "Panel", "build_surface"]
+def create_surface(product_name: str, workflows: list[str]) -> Surface:
+    return build_surface(product_name, workflows)
+
+
+__all__ = ["Surface", "Panel", "build_surface", "create_surface"]
