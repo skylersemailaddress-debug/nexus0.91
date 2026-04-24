@@ -4,7 +4,8 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT / "docs" / "release" / "evidence" / "release_hardening" / "release_summary.json"
+SUMMARY_OUT = ROOT / "docs" / "release" / "evidence" / "release_hardening" / "release_summary.json"
+CERT_REPORT_OUT = ROOT / "docs" / "release" / "evidence" / "release" / "release_hardening_report.json"
 
 
 def load_json(path: Path) -> dict:
@@ -17,7 +18,8 @@ def load_json(path: Path) -> dict:
 
 
 def main() -> int:
-    OUT.parent.mkdir(parents=True, exist_ok=True)
+    SUMMARY_OUT.parent.mkdir(parents=True, exist_ok=True)
+    CERT_REPORT_OUT.parent.mkdir(parents=True, exist_ok=True)
 
     bootstrap = load_json(ROOT / "docs" / "release" / "evidence" / "release_hardening" / "fresh_bootstrap_report.json")
     rollback = load_json(ROOT / "docs" / "release" / "evidence" / "release_hardening" / "rollback_readiness_report.json")
@@ -28,7 +30,6 @@ def main() -> int:
         "rollback": rollback.get("ok", False),
         "behavioral_runtime": behavioral.get("ok", False),
     }
-
     ok = all(checks.values())
 
     summary = {
@@ -40,8 +41,17 @@ def main() -> int:
             "behavioral": behavioral,
         },
     }
+    certification_report = {
+        "passed": ok,
+        "checks": [
+            {"name": name, "passed": bool(value), "details": [] if value else ["failed"]}
+            for name, value in checks.items()
+        ],
+        "summary_path": str(SUMMARY_OUT.relative_to(ROOT)),
+    }
 
-    OUT.write_text(json.dumps(summary, indent=2))
+    SUMMARY_OUT.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    CERT_REPORT_OUT.write_text(json.dumps(certification_report, indent=2), encoding="utf-8")
     print(json.dumps(summary, indent=2))
     return 0 if ok else 1
 
