@@ -44,4 +44,8 @@ def build_distribution(product_name: str) -> DistributionPlan:
     return DistributionPlan(channels, segments, campaigns, launch_sequence, feedback_loop)
 
 
-__all__ = ["DistributionPlan", "build_distribution"]
+def create_plan(product_name: str) -> DistributionPlan:
+    return build_distribution(product_name)
+
+
+__all__ = ["DistributionPlan", "build_distribution", "create_plan"]
