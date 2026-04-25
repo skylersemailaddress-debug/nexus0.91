@@ -13,16 +13,16 @@ CANONICAL_FILES = [
 CURRENT_STATUS = ROOT / "docs/release/CURRENT_STATUS.md"
 
 ACTIVE_STALE_PATTERNS = [
-    "Status: NO-GO",
-    "Status: RED",
-    "Status: OPEN",
-    "GitHub Actions: RED",
-    "NOT MERGE READY",
+    "Status:" + " NO-GO",
+    "Status:" + " RED",
+    "Status:" + " OPEN",
+    "GitHub Actions:" + " RED",
+    "NOT MERGE" + " READY",
 ]
 
 DRAFT_PATTERNS = [
-    "DRAFT UNTIL IMPLEMENTED",
-    "Status: DRAFT",
+    "DRAFT UNTIL" + " IMPLEMENTED",
+    "Status:" + " DRAFT",
 ]
 
 ALLOW_TERMS = [
