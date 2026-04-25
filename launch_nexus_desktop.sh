@@ -1,36 +1,86 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VENV_DIR="${ROOT_DIR}/.venv"
-NODE_MODULES_DIR="${ROOT_DIR}/desktop_shell/node_modules"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$ROOT"
 
-if [[ ! -d "${VENV_DIR}" ]]; then
-  echo "Missing virtual environment at ${VENV_DIR}. Create it and install the project first." >&2
-  echo "Expected setup:" >&2
-  echo "  python3 -m venv .venv && source .venv/bin/activate && python -m pip install -e ." >&2
+if [ -f "$ROOT/.venv/bin/activate" ]; then
+  # shellcheck disable=SC1091
+  source "$ROOT/.venv/bin/activate"
+else
+  echo "Missing .venv. Create it with:"
+  echo "python -m venv .venv && source .venv/bin/activate && pip install -e ."
   exit 1
 fi
 
-# shellcheck disable=SC1091
-source "${VENV_DIR}/bin/activate"
-
 python - <<'PY'
-import importlib.util
-import sys
-
-if importlib.util.find_spec("nexus_os") is None:
-    sys.stderr.write("Nexus package is not installed in the active virtual environment.\n")
-    sys.stderr.write("Run: python -m pip install -e .\n")
+missing = []
+for mod in ["fastapi", "uvicorn", "nexus_os.product.api_server"]:
+    try:
+        __import__(mod)
+    except Exception as exc:
+        missing.append(f"{mod}: {exc}")
+if missing:
+    print("Missing API dependencies:")
+    print("Run: pip install -e . && pip install fastapi uvicorn")
     raise SystemExit(1)
 PY
 
-if [[ ! -d "${NODE_MODULES_DIR}" ]]; then
-  echo "Missing desktop dependencies at ${NODE_MODULES_DIR}." >&2
-  echo "Run: cd desktop_shell && npm install" >&2
+if [ ! -d "$ROOT/desktop_shell/node_modules" ]; then
+  echo "Missing desktop dependencies."
+  echo "Run: cd desktop_shell && npm install"
   exit 1
 fi
 
-cd "${ROOT_DIR}/desktop_shell"
-export NEXUS_PYTHON="${VENV_DIR}/bin/python"
-exec npm run desktop
+API_AUTH_TOKEN="${API_AUTH_TOKEN:-dev-api-token}"
+API_URL="${NEXUS_API_URL:-http://127.0.0.1:8765}"
+API_PID=""
+
+cleanup() {
+  if [ -n "${API_PID:-}" ]; then
+    kill "$API_PID" >/dev/null 2>&1 || true
+  fi
+}
+trap cleanup EXIT
+
+api_ready() {
+  curl -fsS "$API_URL/api/state" -H "Authorization: Bearer $API_AUTH_TOKEN" >/dev/null 2>&1
+}
+
+if api_ready; then
+  echo "Nexus API already running at $API_URL"
+else
+  echo "Starting Nexus API at $API_URL"
+  API_AUTH_TOKEN="$API_AUTH_TOKEN" uvicorn nexus_os.product.api_server:app --host 127.0.0.1 --port 8765 >/tmp/nexus-api.log 2>&1 &
+  API_PID="$!"
+
+  for _ in $(seq 1 30); do
+    if api_ready; then
+      break
+    fi
+    sleep 0.5
+  done
+
+  if ! api_ready; then
+    echo "Nexus API did not become ready. Last API log:"
+    tail -n 80 /tmp/nexus-api.log || true
+    exit 1
+  fi
+fi
+
+cd "$ROOT/desktop_shell"
+
+if [ -n "${DISPLAY:-}" ]; then
+  echo "Launching Nexus Desktop: graphical mode"
+  npm run desktop
+else
+  if ! command -v xvfb-run >/dev/null 2>&1; then
+    echo "No DISPLAY and xvfb-run is not installed."
+    echo "In Codespaces run:"
+    echo "sudo apt-get update && sudo apt-get install -y xvfb libatk1.0-0t64 libatk-bridge2.0-0t64 libgtk-3-0t64 libnss3 libxss1 libasound2t64 libx11-xcb1 libxcomposite1 libxdamage1 libxrandr2 libgbm1"
+    exit 1
+  fi
+
+  echo "Launching Nexus Desktop: headless Codespaces mode via xvfb-run"
+  ELECTRON_DISABLE_GPU=1 xvfb-run -a ./node_modules/.bin/electron electron/main.js --disable-gpu --disable-software-rasterizer --no-sandbox
+fi
