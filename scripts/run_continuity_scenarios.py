@@ -5,6 +5,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List
 
+try:
+    import _repo_bootstrap  # noqa: F401
+except ModuleNotFoundError:  # pragma: no cover
+    from scripts import _repo_bootstrap  # noqa: F401
 from nexus_os.product.continuity import build_resume_snapshot
 
 ROOT = Path(__file__).resolve().parents[1]

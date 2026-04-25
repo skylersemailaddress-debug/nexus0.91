@@ -2,7 +2,10 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+try:
+    import _repo_bootstrap  # noqa: F401
+except ModuleNotFoundError:  # pragma: no cover
+    from scripts import _repo_bootstrap  # noqa: F401
 from nexus_os.governance.master_truth_gate import run_master_truth_gate
 
 def main() -> int:
