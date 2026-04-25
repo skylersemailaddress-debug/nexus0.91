@@ -1,3 +1,5 @@
+> Historical archive. This document predates the current evidence-certified release state and is not current launch truth.
+
 # Phase 12 Distribution Work Package
 
 ## Objective

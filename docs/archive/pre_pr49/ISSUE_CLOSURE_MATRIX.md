@@ -1,3 +1,5 @@
+> Historical archive. This document predates the current evidence-certified release state and is not current launch truth.
+
 # ISSUE CLOSURE MATRIX
 
 This matrix reflects conservative truth. Issues are only marked closed if runtime, scenario, evidence, validator, and gate coverage exist.

@@ -1,3 +1,5 @@
+> Historical archive. This document predates the current evidence-certified release state and is not current launch truth.
+
 # NEXUS PHASE 9 — SECURITY AND GOVERNANCE HARDENING
 
 Status: OPEN
