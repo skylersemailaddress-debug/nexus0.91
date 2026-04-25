@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 from .state_inference import compute_active_intelligence_line
 from .api_contract_routes import router as contract_router
+from .ui_state import build_hover_native_ui_state
 
 app = FastAPI(title="Nexus Desktop API")
 
@@ -92,26 +93,25 @@ def get_state() -> dict[str, object]:
         },
     }
 
-    return {
-        "ok": True,
-        "data": {
-            "workspace": {
-                "workspace_id": _GLOBAL_STATE.get("workspace_id", "workspace:main"),
-                "run_state": _GLOBAL_STATE.get("run_state", "idle"),
-            },
-            "conversation": {
-                "turns": turns,
-            },
-            "resume_snapshot": resume_snapshot,
-            "operator_surface": _GLOBAL_STATE.get("operator_surface", {}),
-            "models": _GLOBAL_STATE.get("models", {}),
-            "artifacts_recent": _GLOBAL_STATE.get("artifacts_recent", []),
-            "mission": mission,
-            "signal": compute_active_intelligence_line(history, mission),
-            "workflow": workflow,
-            "decision": decision,
+    _data: dict[str, object] = {
+        "workspace": {
+            "workspace_id": _GLOBAL_STATE.get("workspace_id", "workspace:main"),
+            "run_state": _GLOBAL_STATE.get("run_state", "idle"),
         },
+        "conversation": {
+            "turns": turns,
+        },
+        "resume_snapshot": resume_snapshot,
+        "operator_surface": _GLOBAL_STATE.get("operator_surface", {}),
+        "models": _GLOBAL_STATE.get("models", {}),
+        "artifacts_recent": _GLOBAL_STATE.get("artifacts_recent", []),
+        "mission": mission,
+        "signal": compute_active_intelligence_line(history, mission),
+        "workflow": workflow,
+        "decision": decision,
     }
+    _data["hover_native_ui"] = build_hover_native_ui_state(_data)
+    return {"ok": True, "data": _data}
 
 
 @app.post("/api/conversation")

@@ -8,6 +8,13 @@
 </head>
 <body>
   <div id="app" class="workspace">
+    <div id="edge-reveal-layer" class="edge-reveal-layer" aria-hidden="false">
+      <button id="edge-left" class="edge-zone edge-left" aria-label="Left edge reveal" title="Navigation"></button>
+      <button id="edge-right" class="edge-zone edge-right" aria-label="Right edge reveal" title="Context"></button>
+      <button id="edge-top" class="edge-zone edge-top" aria-label="Top edge reveal" title="Command"></button>
+      <button id="edge-bottom" class="edge-zone edge-bottom" aria-label="Bottom edge reveal" title="Recovery"></button>
+    </div>
+
     <header class="workspace-topbar">
       <div class="brand">
         <div class="brand-mark"></div>
@@ -30,6 +37,7 @@
         <span id="run-state-pill" class="pill">idle</span>
         <span id="active-mission-pill" class="pill muted">mission: none</span>
         <span id="pending-pill" class="pill muted">pending approvals: 0</span>
+        <button id="pin-current" class="ghost tiny" aria-label="Pin current item">Pin Current</button>
         <button id="approve-next" class="ghost tiny hidden">Approve Next</button>
       </div>
       <div class="context-secondary">
@@ -42,6 +50,16 @@
       <section id="conversation-log" class="conversation-log" aria-live="polite"></section>
 
       <section id="quick-actions" class="quick-actions" aria-label="Context actions"></section>
+
+      <section id="adaptive-opening" class="adaptive-opening hidden" aria-label="Adaptive opening surface"></section>
+
+      <section id="explain-why-panel" class="explain-why-panel hidden" aria-label="Explain why panel">
+        <div class="explain-why-header">
+          <h2>Explain Why</h2>
+          <button id="close-explain-why" class="ghost tiny">Close</button>
+        </div>
+        <div id="explain-why-body" class="explain-why-body"></div>
+      </section>
 
       <section class="composer-shell">
         <div class="composer-header">
@@ -70,6 +88,20 @@
       <div id="depth-intro" class="depth-intro"></div>
       <div id="depth-body" class="depth-body"></div>
     </aside>
+
+    <footer id="bottom-command-rail" class="bottom-command-rail" aria-label="Bottom command rail">
+      <div class="command-rail-main">
+        <p id="command-rail-mode" class="command-rail-mode">mode: idle</p>
+        <button id="command-rail-primary" class="primary">Compose</button>
+        <div id="command-rail-secondary" class="command-rail-secondary"></div>
+      </div>
+      <div class="command-rail-meta">
+        <p id="command-rail-disabled" class="command-rail-disabled"></p>
+        <p id="keyboard-parity-pill" class="signal">keyboard parity: pending</p>
+        <button id="undo-action" class="ghost tiny">Undo</button>
+        <button id="show-explain-why" class="ghost tiny">Why</button>
+      </div>
+    </footer>
   </div>
 
   <script type="module" src="/assets/app.js"></script>
