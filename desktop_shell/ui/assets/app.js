@@ -1,11 +1,15 @@
 const state = {
   snapshot: null,
   depthMode: null,
+  showExplainWhy: false,
+  pinnedItems: [],
   density: localStorage.getItem("nexus-density") || "comfortable",
   auth: {
     apiToken: null,
   },
 };
+
+const PIN_STORAGE_KEY = "nexus:pinned-items";
 
 const nodes = {
   log: document.getElementById("conversation-log"),
@@ -15,6 +19,7 @@ const nodes = {
   focusComposer: document.getElementById("focus-composer"),
   launchMission: document.getElementById("launch-mission"),
   approveNext: document.getElementById("approve-next"),
+  pinCurrent: document.getElementById("pin-current"),
   runStatePill: document.getElementById("run-state-pill"),
   activeMissionPill: document.getElementById("active-mission-pill"),
   pendingPill: document.getElementById("pending-pill"),
@@ -31,6 +36,22 @@ const nodes = {
   summonProof: document.getElementById("summon-proof"),
   openTextual: document.getElementById("open-textual"),
   densityToggle: document.getElementById("density-toggle"),
+  edgeLeft: document.getElementById("edge-left"),
+  edgeRight: document.getElementById("edge-right"),
+  edgeTop: document.getElementById("edge-top"),
+  edgeBottom: document.getElementById("edge-bottom"),
+  adaptiveOpening: document.getElementById("adaptive-opening"),
+  explainWhyPanel: document.getElementById("explain-why-panel"),
+  explainWhyBody: document.getElementById("explain-why-body"),
+  closeExplainWhy: document.getElementById("close-explain-why"),
+  showExplainWhy: document.getElementById("show-explain-why"),
+  bottomCommandRail: document.getElementById("bottom-command-rail"),
+  commandRailMode: document.getElementById("command-rail-mode"),
+  commandRailPrimary: document.getElementById("command-rail-primary"),
+  commandRailSecondary: document.getElementById("command-rail-secondary"),
+  commandRailDisabled: document.getElementById("command-rail-disabled"),
+  keyboardParityPill: document.getElementById("keyboard-parity-pill"),
+  undoAction: document.getElementById("undo-action"),
 };
 
 function applyDensity() {
@@ -43,6 +64,20 @@ function toggleDensity() {
   state.density = state.density === "compact" ? "comfortable" : "compact";
   localStorage.setItem("nexus-density", state.density);
   applyDensity();
+}
+
+function loadPinnedItems() {
+  try {
+    const raw = localStorage.getItem(PIN_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    state.pinnedItems = Array.isArray(parsed) ? parsed : [];
+  } catch {
+    state.pinnedItems = [];
+  }
+}
+
+function savePinnedItems() {
+  localStorage.setItem(PIN_STORAGE_KEY, JSON.stringify(state.pinnedItems));
 }
 
 function bubble(role, text) {
@@ -110,6 +145,41 @@ function quickAction(label, action) {
   button.textContent = label;
   button.addEventListener("click", action);
   nodes.quickActions.appendChild(button);
+}
+
+function currentPinCandidate(snapshot) {
+  const mission = snapshot.mission || "No mission set";
+  const id = mission && mission !== "No mission set" ? `mission:${mission}` : "surface:current";
+  return {
+    id,
+    item_type: mission && mission !== "No mission set" ? "mission" : "surface",
+    title: mission && mission !== "No mission set" ? mission : "Current Surface",
+    source: "desktop_shell",
+    persistence_key: `nexus:pinned-items:${id}`,
+    created_at: new Date().toISOString(),
+    reason: "Pinned by operator",
+  };
+}
+
+function renderPinnedButton(snapshot) {
+  const candidate = currentPinCandidate(snapshot);
+  const pinned = state.pinnedItems.some((item) => item.id === candidate.id);
+  nodes.pinCurrent.textContent = pinned ? "Unpin Current" : "Pin Current";
+}
+
+function togglePinCurrent() {
+  if (!state.snapshot) {
+    return;
+  }
+  const candidate = currentPinCandidate(state.snapshot);
+  const index = state.pinnedItems.findIndex((item) => item.id === candidate.id);
+  if (index >= 0) {
+    state.pinnedItems.splice(index, 1);
+  } else {
+    state.pinnedItems.unshift(candidate);
+  }
+  savePinnedItems();
+  renderPinnedButton(state.snapshot);
 }
 
 function autosizeComposer() {
@@ -255,6 +325,201 @@ function renderDepth(mode, snapshot) {
   });
 }
 
+function renderEdgeReveal(zones) {
+  const zoneNodes = {
+    left: nodes.edgeLeft,
+    right: nodes.edgeRight,
+    top: nodes.edgeTop,
+    bottom: nodes.edgeBottom,
+  };
+  Object.entries(zoneNodes).forEach(([edge, node]) => {
+    const zone = (zones || []).find((z) => z.edge === edge);
+    if (!zone) {
+      node.classList.add("hidden");
+      return;
+    }
+    node.classList.remove("hidden");
+    node.disabled = !zone.enabled;
+    node.dataset.intent = zone.intent || "";
+    node.title = `${zone.label} (${zone.keyboard_shortcut || ""})`;
+    node.setAttribute("aria-label", `${zone.label}. ${zone.reason || ""}`);
+  });
+}
+
+function renderBottomCommandRail(rail, keyboardParity) {
+  if (!rail || rail.visible === false) {
+    nodes.bottomCommandRail.classList.add("hidden");
+    return;
+  }
+  nodes.bottomCommandRail.classList.remove("hidden");
+  nodes.commandRailMode.textContent = `mode: ${rail.mode || "idle"}`;
+  nodes.commandRailPrimary.textContent = String(rail.primary_action || "compose").replaceAll("_", " ");
+  nodes.commandRailDisabled.textContent = rail.disabled_reason || "";
+
+  nodes.commandRailSecondary.innerHTML = "";
+  (rail.secondary_actions || []).forEach((action) => {
+    const button = document.createElement("button");
+    button.className = "ghost tiny";
+    button.type = "button";
+    button.textContent = String(action).replaceAll("_", " ");
+    if (action === "pin_current") {
+      button.addEventListener("click", togglePinCurrent);
+    }
+    if (action === "show_explain_why") {
+      button.addEventListener("click", () => {
+        state.showExplainWhy = true;
+        renderExplainWhy((state.snapshot.hover_native_ui || {}).explain_why || []);
+      });
+    }
+    if (action === "undo_last") {
+      button.addEventListener("click", handleUndo);
+    }
+    nodes.commandRailSecondary.appendChild(button);
+  });
+
+  nodes.keyboardParityPill.textContent = keyboardParity && keyboardParity.passed
+    ? "keyboard parity: pass"
+    : "keyboard parity: limited";
+}
+
+function renderAdaptiveOpening(groups) {
+  nodes.adaptiveOpening.innerHTML = "";
+  const visible = (groups || []).filter((group) => group.enabled && Number(group.relevance_score || 0) >= 0.6);
+  if (!visible.length) {
+    nodes.adaptiveOpening.classList.add("hidden");
+    return;
+  }
+  nodes.adaptiveOpening.classList.remove("hidden");
+  visible.forEach((group) => {
+    const card = document.createElement("section");
+    card.className = "adaptive-card";
+    const title = document.createElement("h3");
+    title.textContent = `${group.title} (${Number(group.relevance_score || 0).toFixed(2)})`;
+    const reason = document.createElement("p");
+    reason.textContent = group.reason || "";
+    card.appendChild(title);
+    card.appendChild(reason);
+    (group.items || []).slice(0, 4).forEach((item) => {
+      const line = document.createElement("p");
+      line.className = "adaptive-item";
+      line.textContent = item.value ? `${item.label}: ${item.value}` : String(item.label || "");
+      card.appendChild(line);
+    });
+    nodes.adaptiveOpening.appendChild(card);
+  });
+}
+
+function renderExplainWhy(entries) {
+  nodes.explainWhyBody.innerHTML = "";
+  if (!state.showExplainWhy) {
+    nodes.explainWhyPanel.classList.add("hidden");
+    return;
+  }
+  nodes.explainWhyPanel.classList.remove("hidden");
+  (entries || []).forEach((entry) => {
+    const card = document.createElement("section");
+    card.className = "explain-card";
+    const title = document.createElement("h3");
+    title.textContent = entry.target || entry.id || "explain";
+    const expl = document.createElement("p");
+    expl.textContent = entry.explanation || "No explanation available";
+    const meta = document.createElement("p");
+    meta.className = "explain-meta";
+    meta.textContent = `evidence=${(entry.evidence_ids || []).join(",") || "none"} confidence=${entry.confidence ?? "n/a"} limited=${Boolean(entry.limited)}`;
+    card.appendChild(title);
+    card.appendChild(expl);
+    card.appendChild(meta);
+    nodes.explainWhyBody.appendChild(card);
+  });
+}
+
+function renderUndoRecovery(undoRecovery) {
+  const canUndo = Boolean(undoRecovery && undoRecovery.can_undo);
+  nodes.undoAction.disabled = !canUndo;
+  nodes.undoAction.title = canUndo ? "Undo last action" : (undoRecovery && undoRecovery.disabled_reason) || "No active run to undo";
+}
+
+function handleUndo() {
+  const hover = (state.snapshot && state.snapshot.hover_native_ui) || {};
+  const undo = hover.undo_recovery || {};
+  if (!undo.can_undo) {
+    nodes.log.appendChild(bubble("system", `undo unavailable: ${undo.disabled_reason || "No active run to undo"}`));
+    return;
+  }
+  nodes.log.appendChild(bubble("system", `undo requested for: ${undo.last_action || "action"}`));
+}
+
+function intentAction(intent) {
+  if (intent === "open_navigation_panel") {
+    nodes.focusComposer.focus();
+    return;
+  }
+  if (intent === "open_context_panel") {
+    setDepth("proof");
+    return;
+  }
+  if (intent === "open_command_rail") {
+    nodes.commandRailPrimary.focus();
+    return;
+  }
+  if (intent === "open_recovery_panel") {
+    nodes.undoAction.focus();
+  }
+}
+
+function handleKeyboardShortcut(event) {
+  const key = event.key.toLowerCase();
+  if (key === "/" && document.activeElement !== nodes.composerInput) {
+    event.preventDefault();
+    nodes.composerInput.focus();
+    return;
+  }
+  if (event.ctrlKey && !event.shiftKey && key === "k") {
+    event.preventDefault();
+    nodes.commandRailPrimary.focus();
+    return;
+  }
+  if (event.altKey && key === "arrowleft") {
+    event.preventDefault();
+    nodes.edgeLeft.focus();
+    return;
+  }
+  if (event.altKey && key === "arrowright") {
+    event.preventDefault();
+    nodes.edgeRight.focus();
+    return;
+  }
+  if (event.altKey && key === "arrowup") {
+    event.preventDefault();
+    nodes.edgeTop.focus();
+    return;
+  }
+  if (event.altKey && key === "arrowdown") {
+    event.preventDefault();
+    nodes.edgeBottom.focus();
+    return;
+  }
+  if (event.ctrlKey && event.shiftKey && key === "p") {
+    event.preventDefault();
+    togglePinCurrent();
+    return;
+  }
+  if (event.ctrlKey && event.shiftKey && key === "w") {
+    event.preventDefault();
+    state.showExplainWhy = !state.showExplainWhy;
+    renderExplainWhy((state.snapshot.hover_native_ui || {}).explain_why || []);
+    return;
+  }
+  if (key === "escape") {
+    event.preventDefault();
+    if (!nodes.depthLayer.classList.contains("hidden")) {
+      setDepth(null);
+    }
+    state.showExplainWhy = false;
+    renderExplainWhy([]);
+  }
+}
+
 function setDepth(mode) {
   state.depthMode = mode;
   if (!mode) {
@@ -270,6 +535,7 @@ function setDepth(mode) {
 async function refresh() {
   const snapshot = await api("/api/state");
   state.snapshot = snapshot;
+  const hoverNative = snapshot.hover_native_ui || {};
   const ws = snapshot.workspace || {};
   const resume = resumeSnapshot(snapshot);
   const pending = resume.pending_approvals || [];
@@ -284,6 +550,13 @@ async function refresh() {
   nodes.routeSignal.textContent = `route signal: ${signals.route || "waiting"}`;
   nodes.modelSignal.textContent = `next step: ${resume.next_step || "waiting"}`;
   nodes.approveNext.classList.toggle("hidden", pending.length === 0);
+
+  renderEdgeReveal(hoverNative.edge_reveal || []);
+  renderBottomCommandRail(hoverNative.bottom_command_rail || {}, hoverNative.keyboard_parity || {});
+  renderAdaptiveOpening(hoverNative.adaptive_opening || []);
+  renderExplainWhy(hoverNative.explain_why || []);
+  renderUndoRecovery(hoverNative.undo_recovery || {});
+  renderPinnedButton(snapshot);
 
   renderConversation(snapshot);
   resetQuickActions();
@@ -418,17 +691,29 @@ nodes.openTextual.addEventListener("click", async () => {
   }
 });
 
-window.addEventListener("keydown", (event) => {
-  if (event.key === "/" && document.activeElement !== nodes.composerInput) {
-    event.preventDefault();
-    nodes.composerInput.focus();
-  }
-  if (event.key === "Escape" && !nodes.depthLayer.classList.contains("hidden")) {
-    setDepth(null);
-  }
+[nodes.edgeLeft, nodes.edgeRight, nodes.edgeTop, nodes.edgeBottom].forEach((node) => {
+  node.addEventListener("mouseenter", () => node.classList.add("active"));
+  node.addEventListener("mouseleave", () => node.classList.remove("active"));
+  node.addEventListener("focus", () => node.classList.add("active"));
+  node.addEventListener("blur", () => node.classList.remove("active"));
+  node.addEventListener("click", () => intentAction(node.dataset.intent || ""));
 });
 
+nodes.pinCurrent.addEventListener("click", togglePinCurrent);
+nodes.showExplainWhy.addEventListener("click", () => {
+  state.showExplainWhy = !state.showExplainWhy;
+  renderExplainWhy((state.snapshot.hover_native_ui || {}).explain_why || []);
+});
+nodes.closeExplainWhy.addEventListener("click", () => {
+  state.showExplainWhy = false;
+  renderExplainWhy([]);
+});
+nodes.undoAction.addEventListener("click", handleUndo);
+
+window.addEventListener("keydown", handleKeyboardShortcut);
+
 applyDensity();
+loadPinnedItems();
 autosizeComposer();
 
 async function boot() {

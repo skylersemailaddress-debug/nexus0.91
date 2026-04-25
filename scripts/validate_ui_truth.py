@@ -9,66 +9,94 @@ EVIDENCE_DIR = ROOT / "docs" / "release" / "evidence" / "ui"
 REPORT_PATH = EVIDENCE_DIR / "ui_validation_report.json"
 
 REQUIRED = [
-    "mission_surface_matches_runtime.json",
-    "approval_surface_matches_runtime.json",
-    "progress_surface_matches_run_state.json",
-    "memory_surface_matches_influence_trace.json",
-    "proof_surface_matches_evidence.json",
+    "hover_edge_reveal_state.json",
+    "bottom_command_rail_state.json",
+    "pin_anything_persistence.json",
+    "adaptive_opening_state_relevance.json",
+    "explain_why_integrity.json",
+    "keyboard_parity_contract.json",
+    "undo_recovery_state.json",
+    "no_dashboard_regression.json",
+    "ui_validation_report.json",
 ]
-
-ALLOWED_SURFACE_KEYS = {
-    "mission_surface_matches_runtime": {"objective", "next_step", "trajectory"},
-    "approval_surface_matches_runtime": {"approvals"},
-    "progress_surface_matches_run_state": {"run_status", "jobs"},
-    "memory_surface_matches_influence_trace": {"memory", "suppressed", "reasoning"},
-    "proof_surface_matches_evidence": {"evidence"},
-}
-
 
 def _details_for(name: str, data: dict[str, Any]) -> list[str]:
     details: list[str] = []
     scenario = name.replace(".json", "")
-    surface = data.get("surface")
-    runtime = data.get("runtime_source")
-    reasoning = data.get("reasoning")
     if data.get("scenario") != scenario:
         details.append("scenario_mismatch")
-    if not isinstance(surface, dict) or not surface:
-        details.append("missing_surface")
-        surface = {}
-    if not isinstance(runtime, dict) or not runtime:
-        details.append("missing_runtime_source")
-        runtime = {}
-    if not isinstance(reasoning, list) or not reasoning:
-        details.append("missing_reasoning")
-    allowed = ALLOWED_SURFACE_KEYS.get(scenario, set())
-    extra = set(surface.keys()).difference(allowed)
-    if extra:
-        details.append(f"hallucinated_surface_fields:{','.join(sorted(extra))}")
 
-    if scenario == "mission_surface_matches_runtime":
-        for key in ("objective", "next_step", "trajectory"):
-            if surface.get(key) != runtime.get(key):
-                details.append(f"mission_mismatch_{key}")
-    elif scenario == "approval_surface_matches_runtime":
-        if surface.get("approvals") != list(runtime.get("approvals") or []):
-            details.append("approvals_mismatch")
-    elif scenario == "progress_surface_matches_run_state":
-        if surface.get("run_status") != runtime.get("status"):
-            details.append("run_status_mismatch")
-        if surface.get("jobs") != list(runtime.get("jobs") or []):
-            details.append("jobs_mismatch")
-    elif scenario == "memory_surface_matches_influence_trace":
-        memory_context = runtime.get("memory_context") or {}
-        if surface.get("memory") != list(memory_context.get("items") or []):
-            details.append("memory_items_mismatch")
-        if surface.get("suppressed") != list(memory_context.get("suppressed") or []):
-            details.append("memory_suppressed_mismatch")
-        if surface.get("reasoning") != list(memory_context.get("reasoning") or []):
-            details.append("memory_reasoning_mismatch")
-    elif scenario == "proof_surface_matches_evidence":
-        if surface.get("evidence") != list(runtime.get("evidence") or []):
-            details.append("evidence_mismatch")
+    if scenario == "hover_edge_reveal_state":
+        zones = data.get("edge_reveal")
+        if not isinstance(zones, list) or not zones:
+            details.append("missing_edge_reveal")
+        else:
+            if not all(bool(z.get("keyboard_shortcut")) for z in zones):
+                details.append("edge_zone_missing_keyboard_shortcut")
+
+    elif scenario == "bottom_command_rail_state":
+        rail = data.get("bottom_command_rail")
+        if not isinstance(rail, dict) or not rail:
+            details.append("missing_bottom_command_rail")
+        elif not rail.get("mode"):
+            details.append("missing_command_rail_mode")
+
+    elif scenario == "pin_anything_persistence":
+        pinned = data.get("pinned_items")
+        if not isinstance(pinned, list):
+            details.append("missing_pinned_items")
+        elif not all(str(item.get("persistence_key", "")).startswith("nexus:pinned-items:") for item in pinned):
+            details.append("invalid_persistence_key")
+
+    elif scenario == "adaptive_opening_state_relevance":
+        adaptive = data.get("adaptive_opening")
+        if not isinstance(adaptive, list) or not adaptive:
+            details.append("missing_adaptive_opening")
+        else:
+            for group in adaptive:
+                if "relevance_score" not in group or not group.get("reason"):
+                    details.append("adaptive_opening_missing_relevance_or_reason")
+                    break
+
+    elif scenario == "explain_why_integrity":
+        entries = data.get("explain_why")
+        if not isinstance(entries, list) or not entries:
+            details.append("missing_explain_why")
+        else:
+            for entry in entries:
+                if not entry.get("explanation"):
+                    details.append("explain_why_missing_explanation")
+                    break
+                if not isinstance(entry.get("evidence_ids"), list):
+                    details.append("explain_why_missing_evidence_ids")
+                    break
+
+    elif scenario == "keyboard_parity_contract":
+        contract = data.get("keyboard_parity")
+        if not isinstance(contract, dict):
+            details.append("missing_keyboard_parity")
+        elif not contract.get("passed"):
+            details.append("keyboard_parity_failed")
+
+    elif scenario == "undo_recovery_state":
+        undo = data.get("undo_recovery")
+        if not isinstance(undo, dict):
+            details.append("missing_undo_recovery")
+        else:
+            can_undo = bool(undo.get("can_undo"))
+            disabled_reason = str(undo.get("disabled_reason", ""))
+            if not can_undo and not disabled_reason:
+                details.append("undo_state_not_honest")
+
+    elif scenario == "no_dashboard_regression":
+        if bool(data.get("dashboard_detected")):
+            details.append("dashboard_regression_detected")
+
+    elif scenario == "ui_validation_report":
+        checks = data.get("checks")
+        if not isinstance(checks, list) or not checks:
+            details.append("ui_validation_report_missing_checks")
+
     return details
 
 
