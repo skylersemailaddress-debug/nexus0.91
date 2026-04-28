@@ -1,735 +1,201 @@
-const state = {
-  snapshot: null,
-  depthMode: null,
-  showExplainWhy: false,
-  pinnedItems: [],
-  density: localStorage.getItem("nexus-density") || "comfortable",
-  auth: {
-    apiToken: null,
-  },
-};
-
-const PIN_STORAGE_KEY = "nexus:pinned-items";
-
 const nodes = {
-  log: document.getElementById("conversation-log"),
-  quickActions: document.getElementById("quick-actions"),
-  composerForm: document.getElementById("composer-form"),
-  composerInput: document.getElementById("composer-input"),
-  focusComposer: document.getElementById("focus-composer"),
-  launchMission: document.getElementById("launch-mission"),
-  approveNext: document.getElementById("approve-next"),
-  pinCurrent: document.getElementById("pin-current"),
-  runStatePill: document.getElementById("run-state-pill"),
-  activeMissionPill: document.getElementById("active-mission-pill"),
-  pendingPill: document.getElementById("pending-pill"),
-  routeSignal: document.getElementById("route-signal"),
-  modelSignal: document.getElementById("model-signal"),
-  workspaceLabel: document.getElementById("workspace-label"),
-  depthLayer: document.getElementById("depth-layer"),
-  depthTitle: document.getElementById("depth-title"),
-  depthIntro: document.getElementById("depth-intro"),
-  depthBody: document.getElementById("depth-body"),
-  closeDepth: document.getElementById("close-depth"),
-  summonModels: document.getElementById("summon-models"),
-  summonGovernance: document.getElementById("summon-governance"),
-  summonProof: document.getElementById("summon-proof"),
-  openTextual: document.getElementById("open-textual"),
-  densityToggle: document.getElementById("density-toggle"),
-  edgeLeft: document.getElementById("edge-left"),
-  edgeRight: document.getElementById("edge-right"),
-  edgeTop: document.getElementById("edge-top"),
-  edgeBottom: document.getElementById("edge-bottom"),
-  adaptiveOpening: document.getElementById("adaptive-opening"),
-  explainWhyPanel: document.getElementById("explain-why-panel"),
-  explainWhyBody: document.getElementById("explain-why-body"),
-  closeExplainWhy: document.getElementById("close-explain-why"),
-  showExplainWhy: document.getElementById("show-explain-why"),
-  bottomCommandRail: document.getElementById("bottom-command-rail"),
-  commandRailMode: document.getElementById("command-rail-mode"),
-  commandRailPrimary: document.getElementById("command-rail-primary"),
-  commandRailSecondary: document.getElementById("command-rail-secondary"),
-  commandRailDisabled: document.getElementById("command-rail-disabled"),
-  keyboardParityPill: document.getElementById("keyboard-parity-pill"),
-  undoAction: document.getElementById("undo-action"),
+  heroTitle: document.getElementById("hero-title"),
+  heroSubtitle: document.getElementById("hero-subtitle"),
+  heroMeta: document.getElementById("hero-meta"),
+  summaryText: document.getElementById("summary-text"),
+  changesList: document.getElementById("changes-list"),
+  qualityGates: document.getElementById("quality-gates"),
+  commitsList: document.getElementById("commits-list"),
+  filesHeading: document.getElementById("files-heading"),
+  filesTotals: document.getElementById("files-totals"),
+  filesList: document.getElementById("files-list"),
+  testResults: document.getElementById("test-results"),
+  validatorResults: document.getElementById("validator-results"),
+  nextSteps: document.getElementById("next-steps"),
+  repoDetails: document.getElementById("repo-details"),
+  commitsHeading: document.getElementById("commits-heading"),
 };
 
-function applyDensity() {
-  const compact = state.density === "compact";
-  document.body.classList.toggle("density-compact", compact);
-  nodes.densityToggle.textContent = compact ? "Density: Compact" : "Density: Comfortable";
+function api(path) {
+  return fetch(path)
+    .then((res) => res.json())
+    .then((payload) => {
+      if (!payload.ok) {
+        throw new Error(payload.error || `request_failed:${path}`);
+      }
+      return payload.data;
+    });
 }
 
-function toggleDensity() {
-  state.density = state.density === "compact" ? "comfortable" : "compact";
-  localStorage.setItem("nexus-density", state.density);
-  applyDensity();
-}
-
-function loadPinnedItems() {
-  try {
-    const raw = localStorage.getItem(PIN_STORAGE_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    state.pinnedItems = Array.isArray(parsed) ? parsed : [];
-  } catch {
-    state.pinnedItems = [];
-  }
-}
-
-function savePinnedItems() {
-  localStorage.setItem(PIN_STORAGE_KEY, JSON.stringify(state.pinnedItems));
-}
-
-function bubble(role, text) {
+function metaChip(label, value) {
   const div = document.createElement("div");
-  div.className = `bubble ${role}`;
-  div.textContent = text;
+  div.className = "meta-chip";
+  div.innerHTML = `<label>${label}</label><span>${value || "n/a"}</span>`;
   return div;
 }
 
-function api(path, init = {}) {
-  const headers = {
-    "Content-Type": "application/json",
-    ...(init.headers || {}),
-  };
-  if (state.auth.apiToken) {
-    headers.Authorization = `Bearer ${state.auth.apiToken}`;
-  }
-  return fetch(path, {
-    headers,
-    ...init,
-  }).then(async (res) => {
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || data.ok === false) {
-      const reason = data.error || `http_${res.status}`;
-      throw new Error(reason);
-    }
-    return data.data;
+function setText(el, text) {
+  el.textContent = text;
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function renderRepo(data) {
+  const success = data.clean_worktree && !data.behind_remote;
+  setText(nodes.heroTitle, success ? "Repository updated successfully" : "Repository requires attention");
+  setText(
+    nodes.heroSubtitle,
+    data.clean_worktree
+      ? "All changes committed, tested, and validated"
+      : "Uncommitted or unsynced changes detected in working tree."
+  );
+
+  nodes.heroMeta.innerHTML = "";
+  nodes.heroMeta.append(
+    metaChip("Branch", data.branch),
+    metaChip("Commit", (data.head_commit || "").slice(0, 7)),
+    metaChip("Author", data.head_author),
+    metaChip("Date", data.head_date)
+  );
+
+  setText(nodes.summaryText, data.head_summary || "No commit summary available.");
+
+  nodes.changesList.innerHTML = "";
+  const changes = data.change_highlights.length ? data.change_highlights : ["No changed files found."];
+  changes.forEach((line) => {
+    const li = document.createElement("li");
+    li.textContent = line;
+    nodes.changesList.appendChild(li);
   });
-}
 
-function formatTurn(turn) {
-  const route = turn.route || "conversation";
-  const reason = turn.route_reason || "";
-  const model = turn.model_trace || {};
-  const routeSummary = `route=${route} reason=${reason}`;
-  const modelSummary = model.invoked
-    ? `model=${model.provider || "unknown"}/${model.model_id || ""} tier=${model.tier || ""} fallback=${Boolean(model.fallback)}`
-    : `model=not-invoked`;
-  return `${routeSummary}\n${modelSummary}`;
-}
+  nodes.qualityGates.innerHTML = "";
+  data.quality_gates.forEach((gate) => {
+    const div = document.createElement("div");
+    div.className = "gate";
+    div.innerHTML = `<div>${gate.name}</div><strong>${gate.status}</strong>`;
+    nodes.qualityGates.appendChild(div);
+  });
 
-function extractSignals(snapshot) {
-  const turns = (snapshot.conversation && snapshot.conversation.turns) || [];
-  const latest = turns.length ? turns[turns.length - 1] : null;
-  const trace = latest && latest.model_trace ? latest.model_trace : {};
-  const route = latest ? `${latest.route || "chat"}:${latest.route_reason || ""}` : "waiting";
-  const model = trace.invoked
-    ? `${trace.provider || "unknown"}/${trace.tier || ""} fallback=${Boolean(trace.fallback)}`
-    : "not_invoked";
-  return { route, model, latest, trace };
-}
+  nodes.commitsList.innerHTML = "";
+  nodes.commitsHeading.textContent = `Commits (${data.commits.length})`;
+  data.commits.forEach((commit) => {
+    const row = document.createElement("div");
+    row.className = "commit-row";
+    row.innerHTML = `
+      <span class="commit-hash">${commit.sha.slice(0, 7)}</span>
+      <span>${commit.subject}</span>
+      <span>${commit.author}</span>
+      <span>${commit.time_short}</span>
+    `;
+    nodes.commitsList.appendChild(row);
+  });
 
-function resumeSnapshot(snapshot) {
-  return snapshot.resume_snapshot || {};
-}
+  nodes.filesHeading.textContent = `Files changed (${data.files_changed.length})`;
+  nodes.filesTotals.innerHTML = `<span class="add">+${data.total_additions}</span> <span class="del">−${data.total_deletions}</span>`;
+  nodes.filesList.innerHTML = "";
+  data.files_changed.forEach((file) => {
+    const row = document.createElement("div");
+    row.className = "file-row";
+    row.innerHTML = `
+      <span>${file.path}</span>
+      <span class="add">+${file.additions}</span>
+      <span class="del">−${file.deletions}</span>
+    `;
+    nodes.filesList.appendChild(row);
+  });
 
-function resetQuickActions() {
-  nodes.quickActions.innerHTML = "";
-}
-
-function quickAction(label, action) {
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = "quick-action";
-  button.textContent = label;
-  button.addEventListener("click", action);
-  nodes.quickActions.appendChild(button);
-}
-
-function currentPinCandidate(snapshot) {
-  const mission = snapshot.mission || "No mission set";
-  const id = mission && mission !== "No mission set" ? `mission:${mission}` : "surface:current";
-  return {
-    id,
-    item_type: mission && mission !== "No mission set" ? "mission" : "surface",
-    title: mission && mission !== "No mission set" ? mission : "Current Surface",
-    source: "desktop_shell",
-    persistence_key: `nexus:pinned-items:${id}`,
-    created_at: new Date().toISOString(),
-    reason: "Pinned by operator",
-  };
-}
-
-function renderPinnedButton(snapshot) {
-  const candidate = currentPinCandidate(snapshot);
-  const pinned = state.pinnedItems.some((item) => item.id === candidate.id);
-  nodes.pinCurrent.textContent = pinned ? "Unpin Current" : "Pin Current";
-}
-
-function togglePinCurrent() {
-  if (!state.snapshot) {
-    return;
-  }
-  const candidate = currentPinCandidate(state.snapshot);
-  const index = state.pinnedItems.findIndex((item) => item.id === candidate.id);
-  if (index >= 0) {
-    state.pinnedItems.splice(index, 1);
-  } else {
-    state.pinnedItems.unshift(candidate);
-  }
-  savePinnedItems();
-  renderPinnedButton(state.snapshot);
-}
-
-function autosizeComposer() {
-  const node = nodes.composerInput;
-  node.style.height = "auto";
-  node.style.height = `${Math.min(node.scrollHeight, 240)}px`;
-}
-
-function renderConversation(snapshot) {
-  nodes.log.innerHTML = "";
-  const turns = (snapshot.conversation && snapshot.conversation.turns) || [];
-  const resume = resumeSnapshot(snapshot);
-
-  if (!turns.length) {
-    const objective = resume.objective || "none";
-    const nextStep = resume.next_step || "No active next step yet.";
-    nodes.log.appendChild(
-      bubble(
-        "system",
-        `Nexus is ready. Objective=${objective} | Runtime=${resume.runtime_status || "idle"} | Next=${nextStep}`
-      )
-    );
-    return;
-  }
-
-  const truthLines = [
-    `objective=${resume.objective || "none"}`,
-    `runtime=${resume.runtime_status || "idle"}`,
-    `next=${resume.next_step || "none"}`,
-    `open_loops=${(resume.open_loops || []).length}`,
-    `pending_approvals=${(resume.pending_approvals || []).length}`,
+  nodes.repoDetails.innerHTML = "";
+  const details = [
+    `Remote: ${data.remote_url || "(not configured)"}`,
+    `Branch: ${data.branch}`,
+    `Commit: ${(data.head_commit || "").slice(0, 7)}`,
+    `Pushed ${data.head_date}`,
   ];
-  nodes.log.appendChild(bubble("system", truthLines.join(" | ")));
-
-  for (const turn of turns) {
-    if (turn.user_text) {
-      nodes.log.appendChild(bubble("user", turn.user_text));
-    }
-    nodes.log.appendChild(bubble("nexus", turn.goal || ""));
-    nodes.log.appendChild(bubble("system", formatTurn(turn)));
-  }
-  nodes.log.scrollTop = nodes.log.scrollHeight;
-}
-
-function addDepthCard(title, lines) {
-  const card = document.createElement("section");
-  card.className = "depth-card";
-  const h3 = document.createElement("h3");
-  h3.textContent = title;
-  card.appendChild(h3);
-
-  for (const line of lines) {
+  details.forEach((line) => {
     const p = document.createElement("p");
     p.textContent = line;
-    card.appendChild(p);
-  }
-  nodes.depthBody.appendChild(card);
+    nodes.repoDetails.appendChild(p);
+  });
+  const status = document.createElement("span");
+  status.className = "repo-status";
+  status.textContent = data.clean_worktree ? "Up to date" : "Changes pending";
+  nodes.repoDetails.appendChild(status);
 }
 
-function renderDepth(mode, snapshot) {
-  nodes.depthBody.innerHTML = "";
-  nodes.depthIntro.textContent = "";
-  const resume = resumeSnapshot(snapshot);
-
-  if (mode === "models") {
-    nodes.depthTitle.textContent = "Models Depth";
-    nodes.depthIntro.textContent = "Live provider and fallback truth from the current runtime.";
-    const telemetry = snapshot.models && snapshot.models.telemetry ? snapshot.models.telemetry : {};
-    const recent = telemetry.recent_activity || [];
-    addDepthCard("Runtime Truth", [
-      `gateway_online=${Boolean(snapshot.models && snapshot.models.stack && snapshot.models.stack.gateway_online)}`,
-      `model_invocations=${telemetry.model_invocations || 0}`,
-      `fallbacks=${telemetry.fallbacks || 0}`,
-      `success_rate=${telemetry.success_rate || 0}`,
-    ]);
-    recent.slice(-8).reverse().forEach((activity, idx) => {
-      addDepthCard(`Activity ${idx + 1}`, [
-        `provider=${activity.provider}`,
-        `model=${activity.model_id}`,
-        `tier=${activity.tier} routed=${activity.routed_tier}`,
-        `fallback=${Boolean(activity.fallback)} reason=${activity.fallback_reason || ""}`,
-        `latency_ms=${activity.latency_ms}`,
-      ]);
-    });
-    return;
-  }
-
-  if (mode === "governance") {
-    nodes.depthTitle.textContent = "Governance Depth";
-    nodes.depthIntro.textContent = "Authority and safeguards appear only when needed.";
-    const cards = (snapshot.operator_surface && snapshot.operator_surface.governance_cards) || [];
-    addDepthCard("Pending Authority", [
-      `pending=${(resume.pending_approvals || []).length}`,
-      `runtime_status=${resume.runtime_status || "idle"}`,
-      `open_loops=${(resume.open_loops || []).length}`,
-    ]);
-    (resume.pending_approvals || []).slice(0, 10).forEach((item, idx) => {
-      addDepthCard(`Approval ${idx + 1}`, [
-        `approval_id=${item.approval_id}`,
-        `mission_id=${item.mission_id}`,
-        `objective=${item.objective}`,
-        `status=${item.status}`,
-      ]);
-    });
-    cards.slice(0, 20).forEach((line, idx) => {
-      addDepthCard(`Governance ${idx + 1}`, [line]);
-    });
-    return;
-  }
-
-  nodes.depthTitle.textContent = "Proof Depth";
-  nodes.depthIntro.textContent = "Execution receipts, memory influence, and artifacts for the current runtime.";
-  const proofs = (snapshot.operator_surface && snapshot.operator_surface.proof_ids) || [];
-  const artifacts = snapshot.artifacts_recent || [];
-  const execution = resume.execution_summary || {};
-  const influence = resume.memory_influence || { matches: [] };
-  addDepthCard("Execution Truth", [
-    `run_id=${execution.run_id || "none"}`,
-    `status=${execution.status || resume.runtime_status || "idle"}`,
-    `step_count=${execution.step_count || 0}`,
-    `attempt_count=${execution.attempt_count || 0}`,
-    `latest_phase=${execution.latest_step ? execution.latest_step.phase : "none"}`,
-  ]);
-  addDepthCard("Memory Influence", [
-    `query=${influence.query || ""}`,
-    `match_count=${(influence.matches || []).length}`,
-  ]);
-  (influence.matches || []).slice(0, 5).forEach((item, idx) => {
-    addDepthCard(`Memory Match ${idx + 1}`, [
-      `key=${item.key}`,
-      `stratum=${item.stratum}`,
-      `score=${item.score}`,
-      `reasons=${(item.reasons || []).join(",")}`,
-    ]);
+function renderCI(data) {
+  const testPassCount = data.tests.filter((item) => item.pass).length;
+  nodes.testResults.innerHTML = `
+    <div class="result-summary">
+      <div class="result-check">✓</div>
+      <div>
+        <p class="result-title">${testPassCount === data.tests.length ? "All tests passed" : "Some tests failed"}</p>
+        <p class="result-subtitle">${testPassCount} passed, ${data.tests.length - testPassCount} failed</p>
+      </div>
+    </div>
+  `;
+  data.tests.forEach((test) => {
+    const row = document.createElement("div");
+    row.className = "status-line";
+    row.innerHTML = `<span>${escapeHtml(test.name)}</span><span class="${test.pass ? "add" : "del"}">${test.pass ? "passed" : "failed"}</span>`;
+    nodes.testResults.appendChild(row);
   });
-  addDepthCard("Proof Inventory", [`proof_ids=${proofs.length}`, `recent_artifacts=${artifacts.length}`]);
-  artifacts.slice(-10).reverse().forEach((artifact, idx) => {
-    addDepthCard(`Artifact ${idx + 1}`, [
-      `id=${artifact.id}`,
-      `mission_id=${artifact.mission_id}`,
-      `type=${artifact.type || ""}`,
-    ]);
+
+  const validatorPassCount = data.validators.filter((item) => item.pass).length;
+  nodes.validatorResults.innerHTML = `
+    <div class="result-summary">
+      <div class="result-check">✓</div>
+      <div>
+        <p class="result-title">${validatorPassCount === data.validators.length ? "validate:all passed" : "validator errors detected"}</p>
+        <p class="result-subtitle">${validatorPassCount} validators passed</p>
+      </div>
+    </div>
+  `;
+  data.validators.forEach((item) => {
+    const row = document.createElement("div");
+    row.className = "status-line";
+    row.innerHTML = `<span>${escapeHtml(item.name)}</span><span class="${item.pass ? "add" : "del"}">${item.pass ? "passed" : "failed"}</span>`;
+    nodes.validatorResults.appendChild(row);
   });
 }
 
-function renderEdgeReveal(zones) {
-  const zoneNodes = {
-    left: nodes.edgeLeft,
-    right: nodes.edgeRight,
-    top: nodes.edgeTop,
-    bottom: nodes.edgeBottom,
-  };
-  Object.entries(zoneNodes).forEach(([edge, node]) => {
-    const zone = (zones || []).find((z) => z.edge === edge);
-    if (!zone) {
-      node.classList.add("hidden");
-      return;
+function renderNextSteps(stateData) {
+  const steps = [
+    { title: "Plan", body: stateData.resume_snapshot?.objective || "Define objective" },
+    { title: "Approve", body: `${(stateData.resume_snapshot?.pending_approvals || []).length} pending approvals` },
+    { title: "Execute", body: stateData.resume_snapshot?.runtime_status || "idle" },
+    { title: "Validate", body: stateData.resume_snapshot?.next_step || "Run quality gates" },
+    { title: "Deploy", body: stateData.signal || "Awaiting signal" },
+  ];
+
+  nodes.nextSteps.innerHTML = "";
+  steps.forEach((step, index) => {
+    const div = document.createElement("div");
+    div.className = "step";
+    div.innerHTML = `<h4>${step.title}</h4><p>${step.body}</p>`;
+    nodes.nextSteps.appendChild(div);
+    if (index < steps.length - 1) {
+      const arrow = document.createElement("div");
+      arrow.className = "step-arrow";
+      arrow.textContent = "→";
+      nodes.nextSteps.appendChild(arrow);
     }
-    node.classList.remove("hidden");
-    node.disabled = !zone.enabled;
-    node.dataset.intent = zone.intent || "";
-    node.title = `${zone.label} (${zone.keyboard_shortcut || ""})`;
-    node.setAttribute("aria-label", `${zone.label}. ${zone.reason || ""}`);
   });
 }
 
-function renderBottomCommandRail(rail, keyboardParity) {
-  if (!rail || rail.visible === false) {
-    nodes.bottomCommandRail.classList.add("hidden");
-    return;
-  }
-  nodes.bottomCommandRail.classList.remove("hidden");
-  nodes.commandRailMode.textContent = `mode: ${rail.mode || "idle"}`;
-  nodes.commandRailPrimary.textContent = String(rail.primary_action || "compose").replaceAll("_", " ");
-  nodes.commandRailDisabled.textContent = rail.disabled_reason || "";
-
-  nodes.commandRailSecondary.innerHTML = "";
-  (rail.secondary_actions || []).forEach((action) => {
-    const button = document.createElement("button");
-    button.className = "ghost tiny";
-    button.type = "button";
-    button.textContent = String(action).replaceAll("_", " ");
-    if (action === "pin_current") {
-      button.addEventListener("click", togglePinCurrent);
-    }
-    if (action === "show_explain_why") {
-      button.addEventListener("click", () => {
-        state.showExplainWhy = true;
-        renderExplainWhy((state.snapshot.hover_native_ui || {}).explain_why || []);
-      });
-    }
-    if (action === "undo_last") {
-      button.addEventListener("click", handleUndo);
-    }
-    nodes.commandRailSecondary.appendChild(button);
+Promise.all([api("/api/local-repo-dashboard"), api("/api/hybrid-ci"), api("/api/state")])
+  .then(([repoData, ciData, stateData]) => {
+    renderRepo(repoData);
+    renderCI(ciData);
+    renderNextSteps(stateData);
+  })
+  .catch((error) => {
+    setText(nodes.heroTitle, "Dashboard failed to load");
+    setText(nodes.heroSubtitle, error.message);
   });
-
-  nodes.keyboardParityPill.textContent = keyboardParity && keyboardParity.passed
-    ? "keyboard parity: pass"
-    : "keyboard parity: limited";
-}
-
-function renderAdaptiveOpening(groups) {
-  nodes.adaptiveOpening.innerHTML = "";
-  const visible = (groups || []).filter((group) => group.enabled && Number(group.relevance_score || 0) >= 0.6);
-  if (!visible.length) {
-    nodes.adaptiveOpening.classList.add("hidden");
-    return;
-  }
-  nodes.adaptiveOpening.classList.remove("hidden");
-  visible.forEach((group) => {
-    const card = document.createElement("section");
-    card.className = "adaptive-card";
-    const title = document.createElement("h3");
-    title.textContent = `${group.title} (${Number(group.relevance_score || 0).toFixed(2)})`;
-    const reason = document.createElement("p");
-    reason.textContent = group.reason || "";
-    card.appendChild(title);
-    card.appendChild(reason);
-    (group.items || []).slice(0, 4).forEach((item) => {
-      const line = document.createElement("p");
-      line.className = "adaptive-item";
-      line.textContent = item.value ? `${item.label}: ${item.value}` : String(item.label || "");
-      card.appendChild(line);
-    });
-    nodes.adaptiveOpening.appendChild(card);
-  });
-}
-
-function renderExplainWhy(entries) {
-  nodes.explainWhyBody.innerHTML = "";
-  if (!state.showExplainWhy) {
-    nodes.explainWhyPanel.classList.add("hidden");
-    return;
-  }
-  nodes.explainWhyPanel.classList.remove("hidden");
-  (entries || []).forEach((entry) => {
-    const card = document.createElement("section");
-    card.className = "explain-card";
-    const title = document.createElement("h3");
-    title.textContent = entry.target || entry.id || "explain";
-    const expl = document.createElement("p");
-    expl.textContent = entry.explanation || "No explanation available";
-    const meta = document.createElement("p");
-    meta.className = "explain-meta";
-    meta.textContent = `evidence=${(entry.evidence_ids || []).join(",") || "none"} confidence=${entry.confidence ?? "n/a"} limited=${Boolean(entry.limited)}`;
-    card.appendChild(title);
-    card.appendChild(expl);
-    card.appendChild(meta);
-    nodes.explainWhyBody.appendChild(card);
-  });
-}
-
-function renderUndoRecovery(undoRecovery) {
-  const canUndo = Boolean(undoRecovery && undoRecovery.can_undo);
-  nodes.undoAction.disabled = !canUndo;
-  nodes.undoAction.title = canUndo ? "Undo last action" : (undoRecovery && undoRecovery.disabled_reason) || "No active run to undo";
-}
-
-function handleUndo() {
-  const hover = (state.snapshot && state.snapshot.hover_native_ui) || {};
-  const undo = hover.undo_recovery || {};
-  if (!undo.can_undo) {
-    nodes.log.appendChild(bubble("system", `undo unavailable: ${undo.disabled_reason || "No active run to undo"}`));
-    return;
-  }
-  nodes.log.appendChild(bubble("system", `undo requested for: ${undo.last_action || "action"}`));
-}
-
-function intentAction(intent) {
-  if (intent === "open_navigation_panel") {
-    nodes.focusComposer.focus();
-    return;
-  }
-  if (intent === "open_context_panel") {
-    setDepth("proof");
-    return;
-  }
-  if (intent === "open_command_rail") {
-    nodes.commandRailPrimary.focus();
-    return;
-  }
-  if (intent === "open_recovery_panel") {
-    nodes.undoAction.focus();
-  }
-}
-
-function handleKeyboardShortcut(event) {
-  const key = event.key.toLowerCase();
-  if (key === "/" && document.activeElement !== nodes.composerInput) {
-    event.preventDefault();
-    nodes.composerInput.focus();
-    return;
-  }
-  if (event.ctrlKey && !event.shiftKey && key === "k") {
-    event.preventDefault();
-    nodes.commandRailPrimary.focus();
-    return;
-  }
-  if (event.altKey && key === "arrowleft") {
-    event.preventDefault();
-    nodes.edgeLeft.focus();
-    return;
-  }
-  if (event.altKey && key === "arrowright") {
-    event.preventDefault();
-    nodes.edgeRight.focus();
-    return;
-  }
-  if (event.altKey && key === "arrowup") {
-    event.preventDefault();
-    nodes.edgeTop.focus();
-    return;
-  }
-  if (event.altKey && key === "arrowdown") {
-    event.preventDefault();
-    nodes.edgeBottom.focus();
-    return;
-  }
-  if (event.ctrlKey && event.shiftKey && key === "p") {
-    event.preventDefault();
-    togglePinCurrent();
-    return;
-  }
-  if (event.ctrlKey && event.shiftKey && key === "w") {
-    event.preventDefault();
-    state.showExplainWhy = !state.showExplainWhy;
-    renderExplainWhy((state.snapshot.hover_native_ui || {}).explain_why || []);
-    return;
-  }
-  if (key === "escape") {
-    event.preventDefault();
-    if (!nodes.depthLayer.classList.contains("hidden")) {
-      setDepth(null);
-    }
-    state.showExplainWhy = false;
-    renderExplainWhy([]);
-  }
-}
-
-function setDepth(mode) {
-  state.depthMode = mode;
-  if (!mode) {
-    nodes.depthLayer.classList.add("hidden");
-    return;
-  }
-  if (state.snapshot) {
-    renderDepth(mode, state.snapshot);
-  }
-  nodes.depthLayer.classList.remove("hidden");
-}
-
-async function refresh() {
-  const snapshot = await api("/api/state");
-  state.snapshot = snapshot;
-  const hoverNative = snapshot.hover_native_ui || {};
-  const ws = snapshot.workspace || {};
-  const resume = resumeSnapshot(snapshot);
-  const pending = resume.pending_approvals || [];
-  const signals = extractSignals(snapshot);
-
-  nodes.workspaceLabel.textContent = ws.workspace_id || "workspace:main";
-  nodes.runStatePill.textContent = resume.runtime_status || ws.run_state || "idle";
-  nodes.pendingPill.textContent = `pending approvals: ${pending.length}`;
-  nodes.activeMissionPill.textContent = resume.active
-    ? `mission: ${resume.mission_id} (${resume.status || resume.runtime_status || "active"})`
-    : "mission: none";
-  nodes.routeSignal.textContent = `route signal: ${signals.route || "waiting"}`;
-  nodes.modelSignal.textContent = `next step: ${resume.next_step || "waiting"}`;
-  nodes.approveNext.classList.toggle("hidden", pending.length === 0);
-
-  renderEdgeReveal(hoverNative.edge_reveal || []);
-  renderBottomCommandRail(hoverNative.bottom_command_rail || {}, hoverNative.keyboard_parity || {});
-  renderAdaptiveOpening(hoverNative.adaptive_opening || []);
-  renderExplainWhy(hoverNative.explain_why || []);
-  renderUndoRecovery(hoverNative.undo_recovery || {});
-  renderPinnedButton(snapshot);
-
-  renderConversation(snapshot);
-  resetQuickActions();
-
-  if (pending.length > 0) {
-    quickAction("Resolve Pending Approval", approveNext);
-  }
-
-  if (resume.active && resume.status === "paused") {
-    quickAction("Resume Active Mission", () => sendConversation("resume mission"));
-  }
-
-  if (!resume.active && signals.latest && signals.latest.route === "chat") {
-    quickAction("Launch Last Intent As Mission", () => {
-      const draft = (signals.latest.user_text || "").trim();
-      if (!draft) {
-        return;
-      }
-      nodes.composerInput.value = draft;
-      autosizeComposer();
-      launchMissionFromComposer();
-    });
-  }
-
-  if ((resume.relevant_memory || []).length > 0) {
-    quickAction("Inspect Memory Influence", () => setDepth("proof"));
-  }
-
-  if (resume.execution_summary && (resume.execution_summary.step_count || 0) > 0) {
-    quickAction("Inspect Execution Truth", () => setDepth("proof"));
-  }
-
-  if (signals.trace && signals.trace.fallback) {
-    quickAction("Inspect Model Fallback", () => setDepth("models"));
-  }
-
-  if (pending.length > 0 || ((snapshot.operator_surface && snapshot.operator_surface.governance_cards) || []).length > 0) {
-    quickAction("Inspect Governance", () => setDepth("governance"));
-  }
-
-  if (state.depthMode) {
-    renderDepth(state.depthMode, snapshot);
-  }
-}
-
-async function sendConversation(text) {
-  const trimmed = text.trim();
-  if (!trimmed) {
-    return;
-  }
-  await api("/api/conversation", {
-    method: "POST",
-    body: JSON.stringify({ text: trimmed }),
-  });
-  nodes.composerInput.value = "";
-  await refresh();
-}
-
-async function approveNext() {
-  await api("/api/approve", {
-    method: "POST",
-    body: JSON.stringify({}),
-  });
-  await refresh();
-}
-
-async function launchMissionFromComposer() {
-  const objective = nodes.composerInput.value.trim();
-  if (!objective) {
-    return;
-  }
-  await api("/api/mission", {
-    method: "POST",
-    body: JSON.stringify({ objective }),
-  });
-  nodes.composerInput.value = "";
-  await refresh();
-}
-
-nodes.composerForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  try {
-    await sendConversation(nodes.composerInput.value);
-  } catch (error) {
-    nodes.log.appendChild(bubble("system", `send failed: ${String(error.message || error)}`));
-  }
-});
-
-nodes.composerInput.addEventListener("input", () => {
-  autosizeComposer();
-});
-
-nodes.composerInput.addEventListener("keydown", async (event) => {
-  if (event.key === "Enter" && !event.shiftKey) {
-    event.preventDefault();
-    try {
-      await sendConversation(nodes.composerInput.value);
-    } catch (error) {
-      nodes.log.appendChild(bubble("system", `send failed: ${String(error.message || error)}`));
-    }
-  }
-});
-
-nodes.launchMission.addEventListener("click", async () => {
-  try {
-    await launchMissionFromComposer();
-  } catch (error) {
-    nodes.log.appendChild(bubble("system", `mission launch failed: ${String(error.message || error)}`));
-  }
-});
-
-nodes.approveNext.addEventListener("click", async () => {
-  try {
-    await approveNext();
-  } catch (error) {
-    nodes.log.appendChild(bubble("system", `approval failed: ${String(error.message || error)}`));
-  }
-});
-
-nodes.summonModels.addEventListener("click", () => setDepth("models"));
-nodes.summonGovernance.addEventListener("click", () => setDepth("governance"));
-nodes.summonProof.addEventListener("click", () => setDepth("proof"));
-nodes.closeDepth.addEventListener("click", () => setDepth(null));
-nodes.focusComposer.addEventListener("click", () => {
-  nodes.composerInput.focus();
-});
-nodes.densityToggle.addEventListener("click", toggleDensity);
-
-nodes.openTextual.addEventListener("click", async () => {
-  if (window.nexusDesktop && window.nexusDesktop.openTextualFallback) {
-    await window.nexusDesktop.openTextualFallback();
-  }
-});
-
-[nodes.edgeLeft, nodes.edgeRight, nodes.edgeTop, nodes.edgeBottom].forEach((node) => {
-  node.addEventListener("mouseenter", () => node.classList.add("active"));
-  node.addEventListener("mouseleave", () => node.classList.remove("active"));
-  node.addEventListener("focus", () => node.classList.add("active"));
-  node.addEventListener("blur", () => node.classList.remove("active"));
-  node.addEventListener("click", () => intentAction(node.dataset.intent || ""));
-});
-
-nodes.pinCurrent.addEventListener("click", togglePinCurrent);
-nodes.showExplainWhy.addEventListener("click", () => {
-  state.showExplainWhy = !state.showExplainWhy;
-  renderExplainWhy((state.snapshot.hover_native_ui || {}).explain_why || []);
-});
-nodes.closeExplainWhy.addEventListener("click", () => {
-  state.showExplainWhy = false;
-  renderExplainWhy([]);
-});
-nodes.undoAction.addEventListener("click", handleUndo);
-
-window.addEventListener("keydown", handleKeyboardShortcut);
-
-applyDensity();
-loadPinnedItems();
-autosizeComposer();
-
-async function boot() {
-  try {
-    const info = await Promise.resolve(window.nexusDesktop && window.nexusDesktop.appInfo ? window.nexusDesktop.appInfo() : null);
-    if (info && info.apiToken) {
-      state.auth.apiToken = info.apiToken;
-    }
-    await refresh();
-  } catch (error) {
-    nodes.log.appendChild(bubble("system", `boot failed: ${String(error.message || error)}`));
-  }
-}
-
-boot();
-
-setInterval(() => {
-  refresh().catch(() => {});
-}, 2500);

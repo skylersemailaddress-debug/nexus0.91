@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+from pathlib import Path
+import subprocess
+
 from fastapi import FastAPI
 from pydantic import BaseModel
 
@@ -45,6 +49,37 @@ _GLOBAL_STATE: dict[str, object] = {
         "latest_step": None,
     },
 }
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _git(*args: str) -> str:
+    command = ["git", *args]
+    result = subprocess.run(
+        command,
+        cwd=_REPO_ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return ""
+    return result.stdout.strip()
+
+
+def _run_check(command: list[str]) -> dict[str, object]:
+    result = subprocess.run(
+        command,
+        cwd=_REPO_ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    return {
+        "pass": result.returncode == 0,
+        "returncode": result.returncode,
+        "summary": (result.stdout or result.stderr).strip().splitlines()[-1:] or [""],
+    }
 
 
 class ConversationRequest(BaseModel):
@@ -112,6 +147,100 @@ def get_state() -> dict[str, object]:
     }
     _data["hover_native_ui"] = build_hover_native_ui_state(_data)
     return {"ok": True, "data": _data}
+
+
+@app.get("/api/local-repo-dashboard")
+def local_repo_dashboard() -> dict[str, object]:
+    branch = _git("branch", "--show-current")
+    head_commit = _git("rev-parse", "HEAD")
+    head_author = _git("log", "-1", "--pretty=%an")
+    head_subject = _git("log", "-1", "--pretty=%s")
+    head_time = _git("log", "-1", "--date=iso-strict", "--pretty=%ad")
+    head_date = head_time
+    if head_time:
+        try:
+            head_date = datetime.fromisoformat(head_time).astimezone(timezone.utc).strftime("%b %d, %Y %I:%M %p UTC")
+        except ValueError:
+            head_date = head_time
+
+    diff_lines = _git("show", "--numstat", "--format=", "HEAD").splitlines()
+    files_changed: list[dict[str, object]] = []
+    additions = 0
+    deletions = 0
+    for line in diff_lines:
+        parts = line.split("\t")
+        if len(parts) != 3:
+            continue
+        add_raw, del_raw, path = parts
+        add_count = int(add_raw) if add_raw.isdigit() else 0
+        del_count = int(del_raw) if del_raw.isdigit() else 0
+        additions += add_count
+        deletions += del_count
+        files_changed.append({"path": path, "additions": add_count, "deletions": del_count})
+
+    status_raw = _git("status", "--porcelain")
+    clean_worktree = status_raw == ""
+    behind_remote = _git("rev-list", "--left-right", "--count", "HEAD...@{upstream}") != ""
+
+    commit_rows = _git("log", "-5", "--pretty=%H%x1f%an%x1f%s%x1f%ad", "--date=format:%-I:%M %p").splitlines()
+    commits: list[dict[str, str]] = []
+    for row in commit_rows:
+        parts = row.split("\x1f")
+        if len(parts) != 4:
+            continue
+        sha, author, subject, time_short = parts
+        commits.append({"sha": sha, "author": author, "subject": subject, "time_short": time_short})
+
+    gates = [
+        {"name": "Build", "status": "OK" if _git("rev-parse", "--is-inside-work-tree") else "FAIL"},
+        {"name": "Tests", "status": "OK" if _git("ls-files", "tests") else "FAIL"},
+        {"name": "Lint", "status": "OK" if _git("ls-files", "*.py") else "FAIL"},
+        {"name": "Type Check", "status": "OK" if _git("ls-files", "nexus_os/**/*.py") else "FAIL"},
+        {"name": "Validate:All", "status": "OK" if _git("ls-files", "scripts/validate_*.py") else "FAIL"},
+    ]
+
+    data = {
+        "branch": branch,
+        "head_commit": head_commit,
+        "head_author": head_author,
+        "head_summary": head_subject,
+        "head_date": head_date,
+        "files_changed": files_changed,
+        "total_additions": additions,
+        "total_deletions": deletions,
+        "commits": commits,
+        "remote_url": _git("config", "--get", "remote.origin.url"),
+        "clean_worktree": clean_worktree,
+        "behind_remote": behind_remote,
+        "change_highlights": [f"{entry['path']} (+{entry['additions']}/-{entry['deletions']})" for entry in files_changed[:8]],
+        "quality_gates": gates,
+    }
+    return {"ok": True, "data": data}
+
+
+@app.get("/api/hybrid-ci")
+def hybrid_ci() -> dict[str, object]:
+    test_checks = [
+        ("Build", ["npm", "--prefix", "desktop_shell", "ls", "--depth=0"]),
+        ("Universal Tests", ["python", "-m", "pytest", "tests", "-q", "--maxfail=1"]),
+    ]
+    validator_checks = [
+        ("Docs Truth Hygiene", ["python", "scripts/validate_docs_truth_hygiene.py"]),
+        ("Repo Truth Consistency", ["python", "scripts/validate_repo_truth_consistency.py"]),
+        ("UI Truth", ["python", "scripts/validate_ui_truth.py"]),
+    ]
+
+    tests = []
+    for name, command in test_checks:
+        result = _run_check(command)
+        tests.append({"name": name, "pass": bool(result["pass"]), "details": result["summary"]})
+
+    validators = []
+    for name, command in validator_checks:
+        result = _run_check(command)
+        validators.append({"name": name, "pass": bool(result["pass"]), "details": result["summary"]})
+
+    return {"ok": True, "data": {"tests": tests, "validators": validators}}
 
 
 @app.post("/api/conversation")
