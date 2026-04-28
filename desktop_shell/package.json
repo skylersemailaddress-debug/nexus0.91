@@ -7,7 +7,9 @@
   "scripts": {
     "desktop": "electron electron/main.js",
     "desktop:dev": "electron electron/main.js",
-    "desktop:api": "python3 -m nexus_os.product.api_server"
+    "desktop:api": "python3 -m nexus_os.product.api_server",
+    "test:universal": "bash -lc 'cd .. && python -m pytest tests'",
+    "validate:all": "bash -lc 'cd .. && python scripts/validate_docs_truth_hygiene.py && python scripts/validate_repo_truth_consistency.py && python scripts/run_ui_truth_scenarios.py && python scripts/validate_ui_truth.py'"
   },
   "devDependencies": {
     "electron": "^31.7.7"

@@ -3,106 +3,76 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Nexus Desktop</title>
+  <title>Botomatic Command Center</title>
   <link rel="stylesheet" href="/assets/styles.css" />
 </head>
 <body>
-  <div id="app" class="workspace">
-    <div id="edge-reveal-layer" class="edge-reveal-layer" aria-hidden="false">
-      <button id="edge-left" class="edge-zone edge-left" aria-label="Left edge reveal" title="Navigation"></button>
-      <button id="edge-right" class="edge-zone edge-right" aria-label="Right edge reveal" title="Context"></button>
-      <button id="edge-top" class="edge-zone edge-top" aria-label="Top edge reveal" title="Command"></button>
-      <button id="edge-bottom" class="edge-zone edge-bottom" aria-label="Bottom edge reveal" title="Recovery"></button>
-    </div>
-
-    <header class="workspace-topbar">
-      <div class="brand">
-        <div class="brand-mark"></div>
-        <div class="brand-copy">
-          <h1>Nexus</h1>
-          <p id="workspace-label">workspace:main</p>
+  <main id="dashboard-root" class="dashboard-root" aria-live="polite">
+    <section class="top-row left-col">
+      <header class="top-brand card">
+        <div class="logo-orb" aria-hidden="true">⬢</div>
+        <h1>Botomatic</h1>
+        <p>Enterprise Builder Command Center</p>
+      </header>
+      <section class="card hero-card">
+        <div class="hero-title-row">
+          <div class="check-pill">✓</div>
+          <div>
+            <h2 id="hero-title">Repository status loading…</h2>
+            <p id="hero-subtitle">Fetching live repository snapshot.</p>
+          </div>
         </div>
-      </div>
-      <div class="topbar-actions" role="toolbar" aria-label="Workspace controls">
-        <button id="density-toggle" class="ghost subtle">Density</button>
-        <button id="summon-models" class="ghost">Models</button>
-        <button id="summon-governance" class="ghost">Governance</button>
-        <button id="summon-proof" class="ghost">Proof</button>
-        <button id="open-textual" class="ghost subtle">Operator Shell</button>
-      </div>
-    </header>
-
-    <section class="context-strip" aria-live="polite">
-      <div class="context-primary">
-        <span id="run-state-pill" class="pill">idle</span>
-        <span id="active-mission-pill" class="pill muted">mission: none</span>
-        <span id="pending-pill" class="pill muted">pending approvals: 0</span>
-        <button id="pin-current" class="ghost tiny" aria-label="Pin current item">Pin Current</button>
-        <button id="approve-next" class="ghost tiny hidden">Approve Next</button>
-      </div>
-      <div class="context-secondary">
-        <p id="route-signal" class="signal">route signal: waiting</p>
-        <p id="model-signal" class="signal">model signal: waiting</p>
-      </div>
+        <div class="hero-meta" id="hero-meta"></div>
+        <div class="divider"></div>
+        <h3>Summary</h3>
+        <p id="summary-text" class="muted">Loading repository summary…</p>
+        <div class="divider"></div>
+        <h3>What was changed</h3>
+        <ul id="changes-list" class="bullet-list"></ul>
+        <div class="divider"></div>
+        <h3>Quality gates</h3>
+        <div id="quality-gates" class="gate-grid"></div>
+      </section>
     </section>
 
-    <main class="conversation-stage">
-      <section id="conversation-log" class="conversation-log" aria-live="polite"></section>
-
-      <section id="quick-actions" class="quick-actions" aria-label="Context actions"></section>
-
-      <section id="adaptive-opening" class="adaptive-opening hidden" aria-label="Adaptive opening surface"></section>
-
-      <section id="explain-why-panel" class="explain-why-panel hidden" aria-label="Explain why panel">
-        <div class="explain-why-header">
-          <h2>Explain Why</h2>
-          <button id="close-explain-why" class="ghost tiny">Close</button>
+    <section class="top-row right-col">
+      <section class="card files-panel">
+        <div class="row-between">
+          <h3 id="files-heading">Files changed</h3>
+          <p id="files-totals" class="totals"></p>
         </div>
-        <div id="explain-why-body" class="explain-why-body"></div>
+        <div id="files-list" class="scroll-body"></div>
       </section>
+    </section>
 
-      <section class="composer-shell">
-        <div class="composer-header">
-          <p class="composer-guidance">Compose the next best move. Use Shift+Enter for a newline.</p>
-          <button id="focus-composer" class="ghost tiny">Focus</button>
-        </div>
-        <form id="composer-form" class="composer-form">
-          <textarea
-            id="composer-input"
-            placeholder="State your objective, question, or mission directive..."
-            rows="3"
-          ></textarea>
-          <div class="composer-actions">
-            <button type="button" id="launch-mission" class="ghost">Launch Mission</button>
-            <button type="submit" class="primary">Send</button>
-          </div>
-        </form>
+    <section class="bottom-row left-col">
+      <section class="card commits-panel">
+        <h3 id="commits-heading">Commits</h3>
+        <div id="commits-list" class="scroll-body"></div>
       </section>
-    </main>
+      <section class="card next-steps-panel">
+        <h3>Next steps</h3>
+        <div id="next-steps" class="step-row"></div>
+      </section>
+    </section>
 
-    <aside id="depth-layer" class="depth-layer hidden">
-      <div class="depth-header">
-        <h2 id="depth-title">Depth</h2>
-        <button id="close-depth" class="ghost">Close</button>
+    <section class="bottom-row right-col">
+      <div class="results-grid">
+        <section class="card test-panel">
+          <h3>Test results</h3>
+          <div id="test-results" class="results-shell"></div>
+        </section>
+        <section class="card validator-panel">
+          <h3>Validator results</h3>
+          <div id="validator-results" class="results-shell"></div>
+        </section>
       </div>
-      <div id="depth-intro" class="depth-intro"></div>
-      <div id="depth-body" class="depth-body"></div>
-    </aside>
-
-    <footer id="bottom-command-rail" class="bottom-command-rail" aria-label="Bottom command rail">
-      <div class="command-rail-main">
-        <p id="command-rail-mode" class="command-rail-mode">mode: idle</p>
-        <button id="command-rail-primary" class="primary">Compose</button>
-        <div id="command-rail-secondary" class="command-rail-secondary"></div>
-      </div>
-      <div class="command-rail-meta">
-        <p id="command-rail-disabled" class="command-rail-disabled"></p>
-        <p id="keyboard-parity-pill" class="signal">keyboard parity: pending</p>
-        <button id="undo-action" class="ghost tiny">Undo</button>
-        <button id="show-explain-why" class="ghost tiny">Why</button>
-      </div>
-    </footer>
-  </div>
+      <section class="card repo-panel">
+        <h3>Repository</h3>
+        <div id="repo-details" class="repo-details"></div>
+      </section>
+    </section>
+  </main>
 
   <script type="module" src="/assets/app.js"></script>
 </body>
