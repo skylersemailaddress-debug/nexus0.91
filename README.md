@@ -1,3 +1,5 @@
+> **Repository authority status:** Historical/donor repository. Prospective NOVITAS Nexus authority is [NOVITAS_NEXUS](https://github.com/skylersemailaddress-debug/NOVITAS_NEXUS). Historical canonical language below is provenance only and does not override `REPOSITORY_STATUS.v1.yaml`.
+
 # Nexus v0.91
 
 Nexus v0.91 is a unified AI operating system architecture and product shell. It combines one visible product shell, one core OS layer, one runtime/control plane, one registry, one event bus, one memory substrate, one mission model, one artifact model, one module contract, one operator surface model, and one rendered flagship client.
